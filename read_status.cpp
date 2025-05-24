@@ -53,7 +53,7 @@ struct Status {
 	};
 
 	enum class TapeColourInformation : uint8_t {
-		White = 0x00,
+		White = 0x01,
 		Other = 0x02,
 		Clear = 0x03,
 		Red = 0x04,
@@ -178,11 +178,11 @@ struct Status {
 			case 0x18: return "24 mm / HS 23.6 mm";
 			case 0x24: return "36 mm";
 			case 0x15: return "FLe 21 mm x 45 mm";
-			default: return "unrecognised tape width";
+			default: return "unrecognised tape width: " + std::to_string(static_cast<unsigned>(mediaWidth));
 		}
 	}
 
-	std::string_view mediaTypeStr() const
+	std::string mediaTypeStr() const
 	{
 		switch (mediaType) {
 			case 0x00: return "no media";
@@ -195,7 +195,7 @@ struct Status {
 			case 0x15: return "Satin tape";
 			case 0x17: return "Heat-Shrink Tube (HS 3:1)";
 			case 0xff: return "incompatible tape";
-			default: return "unrecognised tape type";
+			default: return "unrecognised tape type: " + std::to_string(static_cast<unsigned>(mediaType));
 		}
 	}
 
@@ -247,7 +247,7 @@ struct Status {
 		}
 	}
 
-	std::string_view tapeColourStr() const
+	std::string tapeColourStr() const
 	{
 		switch (tapeColourInformation) {
 			case TapeColourInformation::White: return "white";
@@ -279,11 +279,11 @@ struct Status {
 			case TapeColourInformation::Cleaning: return "cleaning";
 			case TapeColourInformation::Stencil: return "stencil";
 			case TapeColourInformation::Incompatible: return "incompatible";
-			default: return "unrecognised";
+			default: return "unrecognised: " + std::to_string(static_cast<unsigned>(tapeColourInformation));
 		}
 	}
 
-	std::string_view textColourStr() const
+	std::string textColourStr() const
 	{
 		switch (textColourInformation) {
 			case TextColourInformation::White: return "white";
@@ -296,7 +296,7 @@ struct Status {
 			case TextColourInformation::Cleaning: return "cleaning";
 			case TextColourInformation::Stencil: return "stencil";
 			case TextColourInformation::Incompatible: return "incompatible";
-			default: return "unrecognised";
+			default: return "unrecognised: " + std::to_string(static_cast<unsigned>(textColourInformation));
 		}
 	}
 
