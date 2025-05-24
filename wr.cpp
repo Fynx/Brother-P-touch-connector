@@ -2,7 +2,8 @@
 #include <fstream>
 #include <iomanip>
 #include <iostream>
-#include <png++/png.hpp>
+
+#include "png++/png.hpp"
 
 #include "ArgParser.hpp"
 
