@@ -206,31 +206,31 @@ void writePng(std::ofstream &out, const png::image<png::rgb_pixel> &img, uint8_t
 	auto intensity = [](const png::basic_rgb_pixel<unsigned char> &p) { return (p.red + p.green + p.blue) / 3 / 16; };
 
 	for (png::uint_32 x = 0; x < width; ++x) {
-		for (unsigned rep = 0; rep < HeightScale; ++rep) {
-			zeroLine = true;
-			png::uint_32 y = 0;
+		zeroLine = true;
+		png::uint_32 y = 0;
 
-			for (; y < LeftMargin; ++y)
-				vline[y] = 0;
+		for (; y < LeftMargin; ++y)
+			vline[y] = 0;
 
-			if (flags & Flags::Test) {
-				for (; y < LeftMargin + height; ++y) {
-					vline[y] = byteValue(x, x);
-					zeroLine = false;
-				}
-			} else {
-				for (; y < LeftMargin + height; ++y) {
-					// TODO iterate like a human being
-					auto p1 = img.get_pixel(x, (y - LeftMargin) * 2);
-					auto p2 = img.get_pixel(x, (y - LeftMargin) * 2 + 1);
-					vline[y] = byteValue(intensity(p1), intensity(p2));
-					zeroLine &= vline[y] == 0;
-				}
+		if (flags & Flags::Test) {
+			for (; y < LeftMargin + height; ++y) {
+				vline[y] = byteValue(x, x);
+				zeroLine = false;
 			}
+		} else {
+			for (; y < LeftMargin + height; ++y) {
+				// TODO iterate like a human being
+				auto p1 = img.get_pixel(x, (y - LeftMargin) * 2);
+				auto p2 = img.get_pixel(x, (y - LeftMargin) * 2 + 1);
+				vline[y] = byteValue(intensity(p1), intensity(p2));
+				zeroLine &= vline[y] == 0;
+			}
+		}
 
-			for (; y < Height; ++y)
-				vline[y] = 0;
+		for (; y < Height; ++y)
+			vline[y] = 0;
 
+		for (unsigned rep = 0; rep < HeightScale; ++rep) {
 			if (zeroLine) {
 				out << 'Z';
 			} else if (flags & Flags::Compressed) {
