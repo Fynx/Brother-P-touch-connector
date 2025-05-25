@@ -97,16 +97,17 @@ void writeEncodedLine(std::ofstream &out, uint8_t* line, png::uint_32 height)
 
 	uint8_t buffer[height];
 	size_t bufferSize = 0;
-	buffer[0] = line[0];
 
 	for (png::uint_32 y = 0; y < height; ++y) {
 		if (line[y] == last && y != 0) {
 			if (bufferSize > 1) {
 				output[size++] = bufferSize - 2;
-				for (size_t i = 0; i < bufferSize - 1; ++i)
+				// std::cerr << "write buffer (" << bufferSize - 1 << "): ";
+				for (size_t i = 0; i < bufferSize - 1; ++i) {
 					output[size++] = buffer[i];
-				// std::cerr << "write buffer (" << bufferSize - 1 << ")\n";
-
+					// std::cerr << std::hex << std::setfill('0') << std::setw(2) << static_cast<uint32_t>(static_cast<uint8_t>(buffer[i]));
+				}
+				// std::cerr << "\n";
 				buffer[0] = line[y];
 				bufferSize = 1;
 				assert(counter == 1);
@@ -124,15 +125,18 @@ void writeEncodedLine(std::ofstream &out, uint8_t* line, png::uint_32 height)
 				assert(bufferSize == 1);
 				bufferSize = 0;
 			}
-			++bufferSize;
+			buffer[bufferSize++] = line[y];
 			last = line[y];
 		}
 	}
 	if (bufferSize > 1) {
 		output[size++] = bufferSize - 1;
-		for (size_t i = 0; i < bufferSize; ++i)
+		// std::cerr << "write buffer (" << bufferSize << "): ";
+		for (size_t i = 0; i < bufferSize; ++i) {
 			output[size++] = buffer[i];
-		// std::cerr << "write buffer (" << bufferSize << ")\n";
+			// std::cerr << std::hex << std::setfill('0') << std::setw(2) << static_cast<uint32_t>(static_cast<uint8_t>(buffer[i]));
+		}
+		// std::cerr << "\n";
 	} else {
 		output[size++] = -(counter - 1);
 		output[size++] = buffer[0];
@@ -165,19 +169,21 @@ void writePng(std::ofstream &out, const png::image<png::rgb_pixel> &img, uint8_t
 	static const unsigned RightMargin = 5;
 
 	png::uint_32 height = Height - (LeftMargin + RightMargin);
-	png::uint_32 width = 14;
+	png::uint_32 width = 16;
 	if (!(flags & Flags::Test)) {
-		height = img.get_height();
+		height = img.get_height() / 2;  // one byte takes 2 pixels
 		assert(Height - height == LeftMargin + RightMargin);
 		width = img.get_width();
 	}
 
 	uint8_t vline[Height];
 	bool zeroLine;
-	unsigned testCnt = 0;
+
+	auto byteValue = [](uint8_t value1, uint8_t value2) { return ((15 - value1) << 4) + 15 - value2; };  // values have to be between 0 and 15
+	auto intensity = [](const png::basic_rgb_pixel<unsigned char> &p) { return (p.red + p.green + p.blue) / 3 / 16; };
 
 	for (png::uint_32 x = 0; x < width; ++x) {
-		for (unsigned rep = 0; rep < 4; ++rep) {
+		for (unsigned rep = 0; rep < 3; ++rep) {
 			zeroLine = true;
 			png::uint_32 y = 0;
 
@@ -186,14 +192,15 @@ void writePng(std::ofstream &out, const png::image<png::rgb_pixel> &img, uint8_t
 
 			if (flags & Flags::Test) {
 				for (; y < LeftMargin + height; ++y) {
-					vline[y] = 255 - testCnt * 12;
+					vline[y] = byteValue(x, x);
 					zeroLine = false;
 				}
 			} else {
 				for (; y < LeftMargin + height; ++y) {
-					auto p = img.get_pixel(x, y);  // TODO iterate like a human being
-					vline[y] = static_cast<uint8_t>(255 - (p.red + p.green + p.blue) / 3);
-					// std::cerr << int(p.red) << " " << int(p.green) << " " << int(p.blue) << " => " << int(vline[y]) << "\n";
+					// TODO iterate like a human being
+					auto p1 = img.get_pixel(x, (y - LeftMargin) * 2);
+					auto p2 = img.get_pixel(x, (y - LeftMargin) * 2 + 1);
+					vline[y] = byteValue(intensity(p1), intensity(p2));
 					zeroLine &= vline[y] == 0;
 				}
 			}
@@ -211,10 +218,9 @@ void writePng(std::ofstream &out, const png::image<png::rgb_pixel> &img, uint8_t
 					out << vline[y];
 			}
 		}
-		++testCnt;
 	}
 
-	out << 'Z' << 'Z';
+	// out << 'Z' << 'Z';
 }
 
 int main(int argc, char **argv)

@@ -1,5 +1,5 @@
 CXX = g++
-CXXFLAGS = -Wall -Wextra -fsanitize=address,undefined -std=c++17
+CXXFLAGS = -Wall -Wextra -fsanitize=address,undefined -ggdb -std=c++17
 
 all: make_request read_status parse_request
 
