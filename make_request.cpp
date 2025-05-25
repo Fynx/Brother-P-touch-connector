@@ -32,7 +32,27 @@ struct SwitchDynamicCommandMode {
 
 struct PrintInformationCommand {
 	const char m[3] = {ESCAPE, 'i', 'z'};
-	uint8_t v[10] = {132, 0, 36, 0, 110, 5, 0, 0, 2, 0};
+
+	uint8_t usedFlags = 132;
+	uint8_t mediaType = 0;
+	uint8_t mediaWidth = 36;
+	uint8_t mediaLength = 0;
+
+	uint8_t rasterNumber[4];
+
+	enum PageIndex : uint8_t {
+		Starting = 0,
+		Other = 1,
+		Last = 2,
+	} pageIndex = Last;
+
+	uint8_t unused = 0;
+
+	void setRasterNumber(uint32_t r)
+	{
+		for (unsigned i = 0; i < 4; ++i)
+			rasterNumber[i] = (r & (0xff << (i << 3))) >> (i << 3);
+	}
 };
 
 struct VariousModeSettings {
@@ -161,6 +181,9 @@ struct Flags {
 	};
 };
 
+static unsigned HeightScale = 3;
+static unsigned TestImageWidth = 16;
+
 void writePng(std::ofstream &out, const png::image<png::rgb_pixel> &img, uint8_t flags)
 {
 	static const unsigned Height = 70;
@@ -169,7 +192,7 @@ void writePng(std::ofstream &out, const png::image<png::rgb_pixel> &img, uint8_t
 	static const unsigned RightMargin = 5;
 
 	png::uint_32 height = Height - (LeftMargin + RightMargin);
-	png::uint_32 width = 16;
+	png::uint_32 width = TestImageWidth;
 	if (!(flags & Flags::Test)) {
 		height = img.get_height() / 2;  // one byte takes 2 pixels
 		assert(Height - height == LeftMargin + RightMargin);
@@ -183,7 +206,7 @@ void writePng(std::ofstream &out, const png::image<png::rgb_pixel> &img, uint8_t
 	auto intensity = [](const png::basic_rgb_pixel<unsigned char> &p) { return (p.red + p.green + p.blue) / 3 / 16; };
 
 	for (png::uint_32 x = 0; x < width; ++x) {
-		for (unsigned rep = 0; rep < 3; ++rep) {
+		for (unsigned rep = 0; rep < HeightScale; ++rep) {
 			zeroLine = true;
 			png::uint_32 y = 0;
 
@@ -264,10 +287,23 @@ int main(int argc, char **argv)
 	if (command == Command::Print) {
 		uint8_t flags = 0;
 
+		png::image<png::rgb_pixel> image;
+		unsigned imageWidth;
+		if (parser.get("-i") == "test") {
+			flags |= Flags::Test;
+			imageWidth = TestImageWidth;
+		} else {
+			image.read(parser.get("-i"));
+			imageWidth = image.get_width();
+		}
+
 		std::ofstream out(parser.get("-o"), std::ofstream::binary | std::ios_base::app);
 
 		writeStruct(out, SwitchDynamicCommandMode{});
-		writeStruct(out, PrintInformationCommand{});
+
+		PrintInformationCommand printInformationCommand;
+		printInformationCommand.setRasterNumber(HeightScale * imageWidth);
+		writeStruct(out, printInformationCommand);
 
 		VariousModeSettings variousModeSettings;
 		variousModeSettings.v = VariousModeSettings::AutoCut;
@@ -289,13 +325,7 @@ int main(int argc, char **argv)
 		}
 		writeStruct(out, compressionMode);
 
-		if (parser.get("-i") == "test") {
-			png::image<png::rgb_pixel> image;
-			writePng(out, image, flags | Flags::Test);
-		} else {
-			png::image<png::rgb_pixel> image{parser.get("-i")};
-			writePng(out, image, flags);
-		}
+		writePng(out, image, flags);
 
 		out << static_cast<uint8_t>(0x1a);  // last page marker
 
