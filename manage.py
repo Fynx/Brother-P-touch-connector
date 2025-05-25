@@ -22,7 +22,7 @@ def parse_args():
 def request_status(device_path, attempts=5, wait=1):
 	for i in range(0, attempts):
 		print("requesting status...")
-		subprocess.check_output(["./wr", "status", "-o", device_path])
+		subprocess.check_output(["./make_request", "status", "-o", device_path])
 
 		sleep(wait)
 

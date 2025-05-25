@@ -1,10 +1,10 @@
 CXX = g++
 CXXFLAGS = -Wall -Wextra -fsanitize=address,undefined -std=c++17
 
-all: wr read_status parse_request
+all: make_request read_status parse_request
 
-wr: wr.cpp ArgParser.hpp png++/*
-	$(CXX) $(CXXFLAGS) `libpng-config --cflags --ldflags` wr.cpp -o wr
+make_request: make_request.cpp ArgParser.hpp png++/*
+	$(CXX) $(CXXFLAGS) `libpng-config --cflags --ldflags` make_request.cpp -o make_request
 
 read_status: read_status.cpp ArgParser.hpp
 	$(CXX) $(CXXFLAGS) read_status.cpp -o read_status
@@ -15,4 +15,4 @@ parse_request: parse_request.cpp ArgParser.hpp
 .PHONY: clean
 
 clean:
-	rm read_status wr parse_request
+	rm read_status make_request parse_request
