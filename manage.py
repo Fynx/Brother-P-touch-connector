@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 
 import argparse
+import os
 import subprocess
 from sys import stdin
 from time import sleep
@@ -10,11 +11,13 @@ def parse_args():
 	parser = argparse.ArgumentParser()
 
 	parser.add_argument("--initialise", action='store_true')
-	parser.add_argument("--device-path", required=False, default="/dev/usb/lp1")
+	parser.add_argument("--device-path", "-d", required=False, default="/dev/usb/lp1")
 	parser.add_argument("--tape-colour", required=True)
 	parser.add_argument("--tape-width", required=True)
 	parser.add_argument("--tape-type", required=True)
 	parser.add_argument("--text-colour", required=True)
+	parser.add_argument("--image", "-i", required=True, help="use 'test' for test page printing")
+	parser.add_argument("--compression", required=False, choices=["no compression", "tiff"], default="tiff")
 
 	return parser.parse_args()
 
@@ -38,6 +41,8 @@ def request_status(device_path, attempts=5, wait=1):
 
 
 def verify_args(args, status):
+	if args.image != "test" and not os.path.exists(args.image):
+		raise Exception(f"Path {args.image} does not exist")
 	if status["error information"]:
 		raise Exception(f"Error: {status['error information']}")
 	if status["phase"] != "editing state":
@@ -52,11 +57,31 @@ def verify_args(args, status):
 		raise Exception(f"Mismatched text colour: {args.text_colour}")
 
 
+def make_request(args):
+	request_path = "/tmp/request.prn"
+	try:
+		os.remove(request_path)
+	except FileNotFoundError:
+		pass
+
+	subprocess.check_output(["./make_request", "initialise", "-o", request_path])
+	subprocess.check_output(["./make_request", "status", "-o", request_path])
+
+	command = [
+		"./make_request", "print",
+		"-i", args.image,
+		"-o", request_path,
+		"--compression", "tiff",
+	]
+	print(" ".join(command))
+	subprocess.check_output(command)
+
+
 def main():
 	args = parse_args()
 
 	if args.initialise:
-		subprocess.check_output(["./wr", "initialise", "-o", args.device_path])
+		subprocess.check_output(["./make_request", "initialise", "-o", args.device_path])
 
 	status = request_status(args.device_path)
 
@@ -66,6 +91,7 @@ def main():
 	print("")
 
 	verify_args(args, status)
+	make_request(args)
 
 
 if __name__ == "__main__":

@@ -102,7 +102,7 @@ void parse(char *buf, unsigned len, uint32_t flags)
 			return;
 		}
 
-		std::cerr << "> " << static_cast<uint32_t>(buf[i]) << "\n";
+		std::cerr << "> " << std::hex << std::setfill('0') << std::setw(2) << "0x" << static_cast<uint32_t>(static_cast<uint8_t>(buf[i])) << "\n";
 
 		assert(buf[i] == ESCAPE);
 		assert(++i < len);

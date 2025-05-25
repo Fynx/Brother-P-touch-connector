@@ -11,17 +11,17 @@
 const char ESCAPE = static_cast<char>(27);
 
 struct InitCommand {
-	uint8_t invalidate[200] = {0};
+	const uint8_t invalidate[200] = {0};
 
-	char m[2] = {ESCAPE, '@'};
+	const char m[2] = {ESCAPE, '@'};
 };
 
 struct StatusRequest {
-	char v[3] = {ESCAPE, 'i', 'S'};
+	const char v[3] = {ESCAPE, 'i', 'S'};
 };
 
 struct SwitchDynamicCommandMode {
-	char m[3] = {ESCAPE, 'i', 'a'};
+	const char m[3] = {ESCAPE, 'i', 'a'};
 
 	enum Mode : uint8_t {
 		EscP = 0x00,
@@ -30,11 +30,8 @@ struct SwitchDynamicCommandMode {
 	} v = Raster;
 };
 
-struct JobIdSettingCommands {
-};
-
 struct PrintInformationCommand {
-	char m[3] = {ESCAPE, 'i', 'z'};
+	const char m[3] = {ESCAPE, 'i', 'z'};
 	uint8_t v[10] = {132, 0, 36, 0, 110, 5, 0, 0, 2, 0};
 };
 
@@ -46,28 +43,21 @@ struct VariousModeSettings {
 		MirrorPrinting = 0x80,
 	};
 
-	uint8_t value = AutoCut;
-
-	void print()
-	{
-		std::cerr << std::boolalpha
-			<< "\tauto cut: " << static_cast<bool>(value & AutoCut) << "\n"
-			<< "\tmirror printing: " << static_cast<bool>(value & MirrorPrinting) << "\n";
-	}
+	uint8_t v = AutoCut;
 };
 
 struct PageNumberInCutEachLabels {
-	char m[3] = {ESCAPE, 'i', 'A'};
+	const char m[3] = {ESCAPE, 'i', 'A'};
 	uint8_t v = 1;  // cut each label
 };
 
 struct AdvancedModeSettings {
-	char m[3] = {ESCAPE, 'i', 'K'};
+	const char m[3] = {ESCAPE, 'i', 'K'};
 	uint8_t v = 12;
 };
 
 struct SpecifyMarginAmount {
-	char m[3] = {ESCAPE, 'i', 'd'};
+	const char m[3] = {ESCAPE, 'i', 'd'};
 	uint8_t v[2] = {14, 0};
 };
 
@@ -78,43 +68,44 @@ struct SelectCompressionMode {
 		Tiff = 0x02,
 	};
 
-	char m = 'M';
+	const char m = 'M';
 	uint8_t v = NoCompression;
-};
-
-struct PrintCommand {
-	InitCommand m_initCommand;
-	SwitchDynamicCommandMode m_switchDynamicCommandMode;
-	PrintInformationCommand m_printInformationCommand;
-	PageNumberInCutEachLabels m_pageNumberInCutEachLabels;
-	SpecifyMarginAmount m_specifyMarginAmount;
-	SelectCompressionMode m_selectCompressionMode;
-	// RasterData m_rasterData;
-	// uint8_t m_printCommandWithFeeding = 0x1a;
 };
 
 
 template <class T>
 void writeStruct(std::ofstream &out, const T &c)
 {
+	// for (size_t i = 0; i < sizeof(c); ++i)
+	// 	std::cerr << std::hex << std::setfill('0') << std::setw(2) << uint32_t(uint8_t(((char *)&c)[i]));
+	// std::cerr << "\n";
 	out.write(reinterpret_cast<const char *>(&c), sizeof(c));
 }
 
 void writeEncodedLine(std::ofstream &out, uint8_t* line, png::uint_32 height)
 {
-	uint8_t output[height + 3];
-	size_t size = 3, counter = 0;
+	// std::cerr << "print line: ";
+	// for (png::uint_32 i = 0; i < height; ++i)
+		// std::cerr << std::hex << std::setfill('0') << std::setw(2) << static_cast<uint32_t>(static_cast<uint8_t>(line[i]));
+	// std::cerr << "\n";
+
+	static const png::uint_32 AuxSize = 20;
+
+	uint8_t output[height + 3 + AuxSize];
+	size_t size = 3, counter = 1;
 	uint8_t last = -1;
 
 	uint8_t buffer[height];
 	size_t bufferSize = 0;
+	buffer[0] = line[0];
 
 	for (png::uint_32 y = 0; y < height; ++y) {
-		if (line[y] == last) {
+		if (line[y] == last && y != 0) {
 			if (bufferSize > 1) {
 				output[size++] = bufferSize - 2;
 				for (size_t i = 0; i < bufferSize - 1; ++i)
 					output[size++] = buffer[i];
+				// std::cerr << "write buffer (" << bufferSize - 1 << ")\n";
 
 				buffer[0] = line[y];
 				bufferSize = 1;
@@ -126,11 +117,14 @@ void writeEncodedLine(std::ofstream &out, uint8_t* line, png::uint_32 height)
 			if (counter > 1) {
 				output[size++] = -(counter - 1);
 				output[size++] = buffer[0];
+				// std::cerr << "write repeated (" << std::hex << static_cast<uint32_t>(static_cast<uint8_t>(buffer[0])) << ") x " << std::dec << counter << "\n";
 
 				buffer[0] = line[y];
-				assert(bufferSize == 1);
 				counter = 1;
+				assert(bufferSize == 1);
+				bufferSize = 0;
 			}
+			++bufferSize;
 			last = line[y];
 		}
 	}
@@ -138,44 +132,89 @@ void writeEncodedLine(std::ofstream &out, uint8_t* line, png::uint_32 height)
 		output[size++] = bufferSize - 1;
 		for (size_t i = 0; i < bufferSize; ++i)
 			output[size++] = buffer[i];
+		// std::cerr << "write buffer (" << bufferSize << ")\n";
 	} else {
 		output[size++] = -(counter - 1);
 		output[size++] = buffer[0];
+		// std::cerr << "write repeated (" << std::hex << static_cast<uint32_t>(static_cast<uint8_t>(buffer[0])) << ") x " << std::dec << counter << "\n";
 	}
 
 	output[0] = 'G';
-	output[1] = size;
+	output[1] = size - 3;
 	output[2] = 0;
-	for (size_t i = 0; i < size; ++i)
+	// std::cerr << "buffer:     ";
+	for (size_t i = 0; i < size; ++i) {
+		// std::cerr << std::hex << std::setfill('0') << std::setw(2) << static_cast<uint32_t>(static_cast<uint8_t>(output[i]));
 		out << output[i];
+	}
+	// std::cerr << "\n\n";
 }
 
-void writePng(std::ofstream &out, const png::image<png::rgb_pixel> &img)
+struct Flags {
+	enum Value : uint8_t {
+		Compressed = 0x01,
+		Test = 0x80,
+	};
+};
+
+void writePng(std::ofstream &out, const png::image<png::rgb_pixel> &img, uint8_t flags)
 {
-	auto height = img.get_height();
-	uint8_t vline[height];
+	static const unsigned Height = 70;
+	// TODO
+	static const unsigned LeftMargin = 7;
+	static const unsigned RightMargin = 5;
+
+	png::uint_32 height = Height - (LeftMargin + RightMargin);
+	png::uint_32 width = 14;
+	if (!(flags & Flags::Test)) {
+		height = img.get_height();
+		assert(Height - height == LeftMargin + RightMargin);
+		width = img.get_width();
+	}
+
+	uint8_t vline[Height];
 	bool zeroLine;
+	unsigned testCnt = 0;
 
-	for (png::uint_32 x = 0; x < img.get_width(); ++x) {
-		for (unsigned rep = 0; rep < 7; ++rep) {
+	for (png::uint_32 x = 0; x < width; ++x) {
+		for (unsigned rep = 0; rep < 4; ++rep) {
 			zeroLine = true;
+			png::uint_32 y = 0;
 
-			for (png::uint_32 y = 0; y < height; ++y) {
-				auto p = img.get_pixel(x, y);  // TODO iterate like a human being
-				vline[y] = static_cast<uint8_t>(255 - (p.red + p.green + p.blue) / 3);
-				std::cerr << int(p.red) << " " << int(p.green) << " " << int(p.blue) << " => " << int(vline[y]) << "\n";
-				zeroLine &= vline[y] == 0;
+			for (; y < LeftMargin; ++y)
+				vline[y] = 0;
+
+			if (flags & Flags::Test) {
+				for (; y < LeftMargin + height; ++y) {
+					vline[y] = 255 - testCnt * 12;
+					zeroLine = false;
+				}
+			} else {
+				for (; y < LeftMargin + height; ++y) {
+					auto p = img.get_pixel(x, y);  // TODO iterate like a human being
+					vline[y] = static_cast<uint8_t>(255 - (p.red + p.green + p.blue) / 3);
+					// std::cerr << int(p.red) << " " << int(p.green) << " " << int(p.blue) << " => " << int(vline[y]) << "\n";
+					zeroLine &= vline[y] == 0;
+				}
 			}
 
-			if (!zeroLine) {
-				out << 'G' << static_cast<uint8_t>(70) << static_cast<uint8_t>(0);
-				for (png::uint_32 y = 0; y < height; ++y)
-					out << vline[y];
-			} else {
+			for (; y < Height; ++y)
+				vline[y] = 0;
+
+			if (zeroLine) {
 				out << 'Z';
+			} else if (flags & Flags::Compressed) {
+				writeEncodedLine(out, vline, Height);
+			} else {
+				out << 'G' << static_cast<uint8_t>(70) << static_cast<uint8_t>(0);
+				for (png::uint_32 y = 0; y < Height; ++y)
+					out << vline[y];
 			}
 		}
+		++testCnt;
 	}
+
+	out << 'Z' << 'Z';
 }
 
 int main(int argc, char **argv)
@@ -200,6 +239,7 @@ int main(int argc, char **argv)
 		case Command::Print:
 			parser.addArgument(Arg{"-i"});
 			parser.addArgument(Arg{"-o"});
+			parser.addArgument(Arg{"--compression"});
 			break;
 		case Command::Status:
 			parser.addArgument(Arg{"-o"});
@@ -216,21 +256,41 @@ int main(int argc, char **argv)
 	}
 
 	if (command == Command::Print) {
+		uint8_t flags = 0;
+
 		std::ofstream out(parser.get("-o"), std::ofstream::binary | std::ios_base::app);
 
 		writeStruct(out, SwitchDynamicCommandMode{});
 		writeStruct(out, PrintInformationCommand{});
-		writeStruct(out, VariousModeSettings{});
+
+		VariousModeSettings variousModeSettings;
+		variousModeSettings.v = VariousModeSettings::AutoCut;
+		writeStruct(out, variousModeSettings);
+
 		writeStruct(out, PageNumberInCutEachLabels{});
 		writeStruct(out, AdvancedModeSettings{});
 		writeStruct(out, SpecifyMarginAmount{});
 
 		SelectCompressionMode compressionMode;
-		compressionMode.v = SelectCompressionMode::Tiff;
+		if (parser.get("--compression") == "no compression") {
+			compressionMode.v = SelectCompressionMode::NoCompression;
+		} else if (parser.get("--compression") == "tiff") {
+			compressionMode.v = SelectCompressionMode::Tiff;
+			flags |= Flags::Compressed;
+		} else {
+			std::cerr << "Invalid compression mode: " << parser.get("--compression") << "\n";
+			return 1;
+		}
 		writeStruct(out, compressionMode);
 
-		png::image<png::rgb_pixel> image(parser.get("-i"));
-		writePng(out, image);
+		if (parser.get("-i") == "test") {
+			png::image<png::rgb_pixel> image;
+			writePng(out, image, flags | Flags::Test);
+		} else {
+			png::image<png::rgb_pixel> image{parser.get("-i")};
+			writePng(out, image, flags);
+		}
+
 		out << static_cast<uint8_t>(0x1a);  // last page marker
 
 	} else if (command == Command::Status) {
