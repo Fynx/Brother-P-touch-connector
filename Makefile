@@ -1,6 +1,6 @@
 CXX = g++
 BUILD_TYPE = release
-CXXFLAGS = -Wall -std=c++20
+CXXFLAGS = -Wall -std=c++20 -fno-exceptions
 
 ifeq ($(BUILD_TYPE),debug)
 	CXXFLAGS = -Wall -Wextra -fsanitize=address,undefined -ggdb -std=c++20
