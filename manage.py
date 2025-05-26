@@ -67,6 +67,7 @@ def make_request(args):
 	subprocess.check_output(["./make_request", "initialise", "-o", request_path])
 	subprocess.check_output(["./make_request", "status", "-o", request_path])
 
+	# TODO away with this
 	tape_width = {
 		"3.5 mm": 4,
 		"6 mm": 6,
@@ -85,10 +86,12 @@ def make_request(args):
 
 	command = [
 		"./make_request", "print",
-		"-i", args.image,
-		"-o", request_path,
+		"-i", f"'{args.image}'",
+		"-o", f"'{request_path}'",
 		"--compression", "tiff",
-		"--tape-width", str(tape_width),
+		"--tape-type", f"'{args.tape_type}'",
+		"--tape-width", f"'{args.tape_width}'",
+		"--tape-width-num", str(tape_width),
 	]
 	print(" ".join(command))
 	subprocess.check_output(command)

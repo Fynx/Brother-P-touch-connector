@@ -182,20 +182,41 @@ struct Flags {
 };
 
 static unsigned HeightScale = 3;
-static unsigned TestImageWidth = 16;
+static unsigned TestImageWidth = 15 * 5;
 
-void writePng(std::ofstream &out, const png::image<png::rgb_pixel> &img, uint8_t flags)
+void writePng(std::ofstream &out, const png::image<png::rgb_pixel> &img, std::string_view mediaWidth, uint8_t flags)
 {
 	static const unsigned Height = 70;
-	// TODO
-	static const unsigned LeftMargin = 7;
-	static const unsigned RightMargin = 5;
+	static const unsigned Pins = 560;
 
-	png::uint_32 height = Height - (LeftMargin + RightMargin);
+	static const std::unordered_map<std::string_view, std::pair<unsigned, unsigned> > Margins {
+		{ "3.5 mm", { 248, 264 } },
+		{ "6 mm", { 240, 256 } },
+		{ "9 mm", { 219, 235 } },
+		{ "12 mm", { 197, 213 } },
+		{ "18 mm", { 155, 171 } },
+		{ "24 mm", { 112, 128 } },
+		{ "36 mm", { 45, 61 } },
+		{ "HS 5.8 mm", { 244, 260 } },
+		{ "HS 8.8 mm", { 224, 240 } },
+		{ "HS 11.7 mm", { 206, 222 } },
+		{ "HS 17.7 mm", { 166, 182 } },
+		{ "HS 23.6 mm", { 144, 160 } },
+		// ??
+		// FLe 21 mm x 45 mm
+		// HS 9.0 mm, HS 11.2 mm, HS 21.0 mm, HS 31.0 mm
+	};
+
+	// left and right margins are swapped as the data is mirrored
+	unsigned leftMargin = Margins.at(mediaWidth).second * Height / Pins;
+	unsigned rightMargin = Margins.at(mediaWidth).first * Height / Pins;
+
+	png::uint_32 height = Height - (leftMargin + rightMargin);
 	png::uint_32 width = TestImageWidth;
 	if (!(flags & Flags::Test)) {
 		height = img.get_height() / 2;  // one byte takes 2 pixels
-		assert(Height - height == LeftMargin + RightMargin);
+		std::cerr << "left margin: " << leftMargin << ", right margin: " << rightMargin << ", height: " << height << "\n";
+		assert(Height - height == leftMargin + rightMargin);
 		width = img.get_width();
 	}
 
@@ -209,19 +230,19 @@ void writePng(std::ofstream &out, const png::image<png::rgb_pixel> &img, uint8_t
 		zeroLine = true;
 		png::uint_32 y = 0;
 
-		for (; y < LeftMargin; ++y)
+		for (; y < leftMargin; ++y)
 			vline[y] = 0;
 
 		if (flags & Flags::Test) {
-			for (; y < LeftMargin + height; ++y) {
-				vline[y] = byteValue(x, x);
+			for (; y < leftMargin + height; ++y) {
+				vline[y] = byteValue(x / 5, x / 5);
 				zeroLine = false;
 			}
 		} else {
-			for (; y < LeftMargin + height; ++y) {
+			for (; y < leftMargin + height; ++y) {
 				// TODO iterate like a human being
-				auto p1 = img.get_pixel(x, (y - LeftMargin) * 2);
-				auto p2 = img.get_pixel(x, (y - LeftMargin) * 2 + 1);
+				auto p1 = img.get_pixel(x, (y - leftMargin) * 2);
+				auto p2 = img.get_pixel(x, (y - leftMargin) * 2 + 1);
 				vline[y] = byteValue(intensity(p1), intensity(p2));
 				zeroLine &= vline[y] == 0;
 			}
@@ -269,7 +290,9 @@ int main(int argc, char **argv)
 			parser.addArgument(Arg{"-i"});
 			parser.addArgument(Arg{"-o"});
 			parser.addArgument(Arg{"--compression"});
+			parser.addArgument(Arg{"--tape-type"});
 			parser.addArgument(Arg{"--tape-width"});
+			parser.addArgument(Arg{"--tape-width-num"});  // TODO remove
 			break;
 		case Command::Status:
 			parser.addArgument(Arg{"-o"});
@@ -303,7 +326,7 @@ int main(int argc, char **argv)
 		writeStruct(out, SwitchDynamicCommandMode{});
 
 		PrintInformationCommand printInformationCommand;
-		printInformationCommand.mediaWidth = std::stoi(parser.value("--tape-width"));
+		printInformationCommand.mediaWidth = std::stoi(parser.value("--tape-width-num"));
 		printInformationCommand.setRasterNumber(HeightScale * imageWidth);
 		writeStruct(out, printInformationCommand);
 
@@ -327,7 +350,7 @@ int main(int argc, char **argv)
 		}
 		writeStruct(out, compressionMode);
 
-		writePng(out, image, flags);
+		writePng(out, image, parser.value("--tape-width"), flags);
 
 		out << static_cast<uint8_t>(0x1a);  // last page marker
 
