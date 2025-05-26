@@ -269,6 +269,7 @@ int main(int argc, char **argv)
 			parser.addArgument(Arg{"-i"});
 			parser.addArgument(Arg{"-o"});
 			parser.addArgument(Arg{"--compression"});
+			parser.addArgument(Arg{"--tape-width"});
 			break;
 		case Command::Status:
 			parser.addArgument(Arg{"-o"});
@@ -302,6 +303,7 @@ int main(int argc, char **argv)
 		writeStruct(out, SwitchDynamicCommandMode{});
 
 		PrintInformationCommand printInformationCommand;
+		printInformationCommand.mediaWidth = std::stoi(parser.get("--tape-width"));
 		printInformationCommand.setRasterNumber(HeightScale * imageWidth);
 		writeStruct(out, printInformationCommand);
 
