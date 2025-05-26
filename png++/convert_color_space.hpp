@@ -31,6 +31,7 @@
 #ifndef PNGPP_CONVERT_COLOR_SPACE_HPP_INCLUDED
 #define PNGPP_CONVERT_COLOR_SPACE_HPP_INCLUDED
 
+#include <cstdint>
 #include "error.hpp"
 #include "rgb_pixel.hpp"
 #include "rgba_pixel.hpp"
@@ -129,9 +130,9 @@ namespace png
             template< class reader >
             static void handle_alpha(reader& io, uint_32 filler)
             {
-                bool src_alpha = (io.get_color_type() & color_mask_alpha);
+                bool src_alpha = (static_cast<uint8_t>(io.get_color_type()) & static_cast<uint8_t>(color_mask_alpha));
                 bool src_tRNS = io.has_chunk(chunk_tRNS);
-                bool dst_alpha = traits::get_color_type() & color_mask_alpha;
+                bool dst_alpha = static_cast<uint8_t>(traits::get_color_type()) & static_cast<uint8_t>(color_mask_alpha);
                 if ((src_alpha || src_tRNS) && !dst_alpha)
                 {
 #ifdef PNG_READ_STRIP_ALPHA_SUPPORTED
@@ -198,7 +199,7 @@ namespace png
             {
                 bool src_rgb =
                     io.get_color_type() & (color_mask_rgb | color_mask_palette);
-                bool dst_rgb = traits::get_color_type() & color_mask_rgb;
+                bool dst_rgb = static_cast<uint8_t>(traits::get_color_type()) & static_cast<uint8_t>(color_mask_rgb);
                 if (src_rgb && !dst_rgb)
                 {
 #ifdef PNG_READ_RGB_TO_GRAY_SUPPORTED
