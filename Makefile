@@ -1,5 +1,10 @@
 CXX = g++
-CXXFLAGS = -Wall -Wextra -fsanitize=address,undefined -ggdb -std=c++17
+BUILD_TYPE = release
+CXXFLAGS = -Wall -std=c++20
+
+ifeq ($(BUILD_TYPE),debug)
+	CXXFLAGS = -Wall -Wextra -fsanitize=address,undefined -ggdb -std=c++20
+endif
 
 all: make_request read_status parse_request
 
@@ -15,4 +20,4 @@ parse_request: parse_request.cpp ArgParser.hpp
 .PHONY: clean
 
 clean:
-	rm read_status make_request parse_request
+	rm -f read_status make_request parse_request
