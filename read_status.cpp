@@ -343,7 +343,7 @@ int main(int argc, char **argv)
 	Status status;
 	assert(sizeof(status) == 32u);
 	{
-		std::string inputFile = parser.get("-i");
+		const std::string &inputFile = parser.value("-i");
 		std::ifstream is{inputFile, std::ios::binary | std::ios::in};
 		if (!is) {
 			std::cerr << "Failed to open '" << inputFile << "'\n";

@@ -254,7 +254,7 @@ int main(int argc, char **argv)
 
 	char buf[100000] = {0};
 
-	std::ifstream in{parser.get("-i"), std::ifstream::binary};
+	std::ifstream in{parser.value("-i"), std::ifstream::binary};
 	in.read(buf, 100000);
 
 	parse(buf, in.gcount(), ParseFlags::WithInvalidate);

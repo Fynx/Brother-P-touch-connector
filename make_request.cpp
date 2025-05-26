@@ -290,20 +290,20 @@ int main(int argc, char **argv)
 
 		png::image<png::rgb_pixel> image;
 		unsigned imageWidth;
-		if (parser.get("-i") == "test") {
+		if (parser.value("-i") == "test") {
 			flags |= Flags::Test;
 			imageWidth = TestImageWidth;
 		} else {
-			image.read(parser.get("-i"));
+			image.read(parser.value("-i"));
 			imageWidth = image.get_width();
 		}
 
-		std::ofstream out(parser.get("-o"), std::ofstream::binary | std::ios_base::app);
+		std::ofstream out(parser.value("-o"), std::ofstream::binary | std::ios_base::app);
 
 		writeStruct(out, SwitchDynamicCommandMode{});
 
 		PrintInformationCommand printInformationCommand;
-		printInformationCommand.mediaWidth = std::stoi(parser.get("--tape-width"));
+		printInformationCommand.mediaWidth = std::stoi(parser.value("--tape-width"));
 		printInformationCommand.setRasterNumber(HeightScale * imageWidth);
 		writeStruct(out, printInformationCommand);
 
@@ -316,13 +316,13 @@ int main(int argc, char **argv)
 		writeStruct(out, SpecifyMarginAmount{});
 
 		SelectCompressionMode compressionMode;
-		if (parser.get("--compression") == "no compression") {
+		if (parser.value("--compression") == "no compression") {
 			compressionMode.v = SelectCompressionMode::NoCompression;
-		} else if (parser.get("--compression") == "tiff") {
+		} else if (parser.value("--compression") == "tiff") {
 			compressionMode.v = SelectCompressionMode::Tiff;
 			flags |= Flags::Compressed;
 		} else {
-			std::cerr << "Invalid compression mode: " << parser.get("--compression") << "\n";
+			std::cerr << "Invalid compression mode: " << parser.value("--compression") << "\n";
 			return 1;
 		}
 		writeStruct(out, compressionMode);
@@ -332,11 +332,11 @@ int main(int argc, char **argv)
 		out << static_cast<uint8_t>(0x1a);  // last page marker
 
 	} else if (command == Command::Status) {
-		std::ofstream out(parser.get("-o"), std::ofstream::binary | std::ios_base::app);
+		std::ofstream out(parser.value("-o"), std::ofstream::binary | std::ios_base::app);
 		writeStruct(out, StatusRequest{});
 
 	} else if (command == Command::Initialise) {
-		std::ofstream out(parser.get("-o"), std::ofstream::binary | std::ios_base::app);
+		std::ofstream out(parser.value("-o"), std::ofstream::binary | std::ios_base::app);
 		writeStruct(out, InitCommand{});
 	}
 

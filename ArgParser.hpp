@@ -1,37 +1,77 @@
 #pragma once
 
 #include <iostream>
+#include <format>
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <vector>
 
 class Arg {
 public:
 	Arg() = default;
-
-	Arg(std::string_view name) : m_name(name)
-	{}
-
-	//Arg & setCnt(unsigned cnt)
-	//{
-	//	m_cnt = cnt;
-	//	return *this;
-	//}
-
-	std::string_view getName() const
-	{
-		return m_name;
-	}
+	Arg(const Arg &) = default;
+	Arg(std::string_view name) : m_name(name) {}
 
 	bool isRequired() const
 	{
 		return m_required;
 	}
 
+	Arg & setRequired(bool required)
+	{
+		m_required = required;
+		return *this;
+	}
+
+	bool isPresent() const
+	{
+		return m_present;
+	}
+
+	Arg & setPresent()
+	{
+		m_present = true;
+		return *this;
+	}
+
+	Arg & setCount(unsigned cnt)
+	{
+		m_cnt = cnt;
+		return *this;
+	}
+
+	unsigned count() const
+	{
+		return m_cnt;
+	}
+
+	std::string_view name() const
+	{
+		return m_name;
+	}
+
+	const std::string & value() const
+	{
+		return m_values[0];
+	}
+
+	const std::vector<std::string> & values() const
+	{
+		return m_values;
+	}
+
+	std::vector<std::string> & valuesRef()
+	{
+		return m_values;
+	}
+
 private:
 	std::string_view m_name;
 	bool m_required = true;
-	//unsigned m_cnt = 1;
+	bool m_present = false;
+	unsigned m_cnt = 1;
+	std::vector<std::string> m_values;
 };
 
 
@@ -40,24 +80,29 @@ public:
 	void parse(int argc, char **argv)
 	{
 		for (int i = 0; i < argc; ++i) {
-			std::string arg{argv[i]};
-			auto it = m_args.find(arg);
+			std::string str{argv[i]};
+			auto it = m_args.find(str);
+			auto &arg = it->second;
 
 			if (it == m_args.end()) {
-				m_error = std::string{"Unrecognised argument: "} + "'" + arg + "'";
+				m_error = std::format("Unrecognised argument: '{}'", str);
 				return;
 			}
-			if (i == argc - 1) {
-				m_error = std::string{"Expected argument after: "} + "'" + arg + "'";
+			if (static_cast<int>(i + arg.count()) >= argc) {
+				m_error = std::format("Expected {} arguments after: '{}'", arg.count(), str);
 				return;
 			}
 
-			m_values[arg] = std::string{argv[++i]};
+			arg.valuesRef().resize(arg.count());
+			for (auto &v : arg.valuesRef())
+				v = argv[++i];
+
+			arg.setPresent();
 		}
 
 		for (auto &[key, arg] : m_args) {
-			if (arg.isRequired() && !has(key)) {
-				m_error = std::string{"Missing argument: "} + "'" + key + "'";
+			if (arg.isRequired() && !arg.isPresent()) {
+				m_error = std::format("Missing argument: '{}'", key);
 				return;
 			}
 		}
@@ -65,7 +110,7 @@ public:
 
 	void addArgument(const Arg &arg)
 	{
-		m_args[std::string{arg.getName()}] = arg;
+		m_args[arg.name()] = arg;
 	}
 
 	bool isValid() const
@@ -80,16 +125,20 @@ public:
 
 	bool has(const std::string &name) const
 	{
-		return m_values.find(name) != m_values.end();
+		return m_args.at(name).isPresent();
 	}
 
-	std::string get(const std::string &name) const
+	const std::string & value(std::string_view name) const
 	{
-		return m_values.at(name);
+		return m_args.at(name).value();
+	}
+
+	const std::vector<std::string> & values(std::string_view name) const
+	{
+		return m_args.at(name).values();
 	}
 
 private:
-	std::unordered_map<std::string, Arg> m_args;
-	std::unordered_map<std::string, std::string> m_values;
+	std::unordered_map<std::string_view, Arg> m_args;
 	mutable std::string m_error;
 };
