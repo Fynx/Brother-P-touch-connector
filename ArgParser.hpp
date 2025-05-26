@@ -81,6 +81,9 @@ public:
 	{
 		for (int i = 0; i < argc; ++i) {
 			std::string str{argv[i]};
+			if (str[0] == str[str.size() - 1] && (str[0] == '\'' || str[0] == '"'))
+				str = str.substr(1, str.size() - 2);
+
 			auto it = m_args.find(str);
 			auto &arg = it->second;
 
@@ -94,8 +97,11 @@ public:
 			}
 
 			arg.valuesRef().resize(arg.count());
-			for (auto &v : arg.valuesRef())
+			for (auto &v : arg.valuesRef()) {
 				v = argv[++i];
+				if (v[0] == v[v.size() - 1] && (v[0] == '\'' || v[0] == '"'))
+					v = v.substr(1, v.size() - 2);
+			}
 
 			arg.setPresent();
 		}
