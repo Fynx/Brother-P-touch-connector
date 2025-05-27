@@ -8,11 +8,17 @@
 
 const char ESCAPE = static_cast<char>(27);
 
-namespace ParseFlags {
+struct ParseFlags {
 	enum Value {
 		WithInvalidate = 0x01,
 	};
-}
+};
+
+struct PrintFlags {
+	enum Value {
+		WithData = 0x01,
+	};
+};
 
 struct SelectCompressionMode {
 	enum Type : uint8_t {
@@ -47,10 +53,10 @@ inline void printHex(char c, bool asciiart = false)
 	std::cerr << c << c;
 }
 
-void parse(char *buf, unsigned len, uint32_t flags)
+void parse(char *buf, unsigned len, uint8_t parseFlags, uint8_t printFlags)
 {
 	unsigned i = 0;
-	if (flags & ParseFlags::WithInvalidate)
+	if (parseFlags & ParseFlags::WithInvalidate)
 		i += 200;  // zero value bytes
 
 	unsigned index;
@@ -63,6 +69,10 @@ void parse(char *buf, unsigned len, uint32_t flags)
 			compressed = buf[i] == SelectCompressionMode::Tiff;
 			if (compressed)
 				std::cerr << "\tcompressed\n";
+			if (printFlags & PrintFlags::WithData) {
+				std::cerr << "\nSkipping data check!\n";
+				return;
+			}
 			continue;
 		} else if (buf[i] == 'G') {
 			assert(++i < len);
@@ -105,6 +115,9 @@ void parse(char *buf, unsigned len, uint32_t flags)
 		} else if (buf[i] == 0x1a) {
 			std::cerr << "last page marker\n";
 			return;
+		} else if (buf[i] == 0x0c) {
+			std::cerr << "continue data marker\n";
+			continue;
 		}
 
 		std::cerr << "> " << std::hex << std::setfill('0') << std::setw(2) << "0x" << ctou(buf[i]) << "\n";
@@ -180,9 +193,9 @@ void parse(char *buf, unsigned len, uint32_t flags)
 				std::cerr << "advanced mode settings:\n";
 
 				if (buf[i] & 0x01)
-					std::cerr << "\tdraft printing\n";
+					std::cerr << "\tdraft printing on\n";
 				else
-					std::cerr << "\tnormal printing\n";
+					std::cerr << "\tdraft printing off\n";
 
 				if (buf[i] & 0x04)
 					std::cerr << "\thalf cut on\n";
@@ -200,9 +213,9 @@ void parse(char *buf, unsigned len, uint32_t flags)
 					std::cerr << "\tspecial tape (no cutting) off\n";
 
 				if (buf[i] & 0x40)
-					std::cerr << "\thigh-resolution printing\n";
+					std::cerr << "\thigh-resolution printing on\n";
 				else
-					std::cerr << "\tnormal printing\n";
+					std::cerr << "\thigh-resolution printing off\n";
 
 				if (buf[i] & 0x80)
 					std::cerr << "\tno buffer clearing while printing on\n";
@@ -245,6 +258,7 @@ int main(int argc, char **argv)
 {
 	ArgParser parser;
 	parser.addArgument(Arg{"-i"});
+	parser.addArgument(Arg{"--no-data"}.setCount(0).setOptional());
 
 	parser.parse(argc - 1, argv + 1);
 	if (!parser.isValid()) {
@@ -257,7 +271,13 @@ int main(int argc, char **argv)
 	std::ifstream in{parser.value("-i"), std::ifstream::binary};
 	in.read(buf, 100000);
 
-	parse(buf, in.gcount(), ParseFlags::WithInvalidate);
+	uint8_t parseFlags = ParseFlags::WithInvalidate;
+
+	uint8_t printFlags = 0;
+	if (parser.has("--no-data"))
+		printFlags |= PrintFlags::WithData;
+
+	parse(buf, in.gcount(), parseFlags, printFlags);
 
 	return 0;
 }
