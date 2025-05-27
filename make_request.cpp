@@ -274,12 +274,28 @@ void writePng(std::ofstream &out, const png::image<png::rgb_pixel> &img, std::st
 
 void writePrintRequest(std::ofstream &out, const ArgParser &parser, const png::image<png::rgb_pixel> &image, unsigned imageWidth, uint8_t flags)
 {
+	static const std::unordered_map<std::string_view, unsigned> TapeWidth {
+		{ "3.5 mm", 4 },
+		{ "6 mm", 6 },
+		{ "9 mm", 9 },
+		{ "12 mm", 12 },
+		{ "18 mm", 18 },
+		{ "24 mm", 24 },
+		{ "36 mm", 36 },
+		{ "HS 5.8 mm", 6 },
+		{ "HS 8.8 mm", 9 },
+		{ "HS 11.7 mm", 12 },
+		{ "HS 17.7 mm", 18 },
+		{ "HS 23.6 mm", 24 },
+		{ "FLe 21 mm x 45 mm", 21 },
+	};
+
 	unsigned copies = std::stoi(parser.value("--copies"));
 	for (unsigned copyIndex = 0; copyIndex < copies; ++copyIndex) {
 		writeStruct(out, SwitchDynamicCommandMode{});
 
 		PrintInformationCommand printInformationCommand;
-		printInformationCommand.mediaWidth = std::stoi(parser.value("--tape-width-num"));
+		printInformationCommand.mediaWidth = TapeWidth.at(parser.value("--tape-width"));
 		printInformationCommand.setRasterNumber(HeightScale * imageWidth);
 		if (copyIndex + 1 == copies)
 			printInformationCommand.pageIndex = PrintInformationCommand::Last;
@@ -346,7 +362,6 @@ int main(int argc, char **argv)
 			parser.addArgument(Arg{"--compression"});
 			parser.addArgument(Arg{"--tape-type"});
 			parser.addArgument(Arg{"--tape-width"});
-			parser.addArgument(Arg{"--tape-width-num"});  // TODO remove
 			parser.addArgument(Arg{"--half-cut-off"}.setOptional().setCount(0));
 			parser.addArgument(Arg{"--chain-printing"}.setOptional().setCount(0));
 			break;

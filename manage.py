@@ -70,23 +70,6 @@ def make_request(args):
 	subprocess.check_output(["./make_request", "initialise", "-o", request_path])
 	subprocess.check_output(["./make_request", "status", "-o", request_path])
 
-	# TODO away with this
-	tape_width = {
-		"3.5 mm": 4,
-		"6 mm": 6,
-		"9 mm": 9,
-		"12 mm": 12,
-		"18 mm": 18,
-		"24 mm": 24,
-		"36 mm": 36,
-		"HS 5.8 mm": 6,
-		"HS 8.8 mm": 9,
-		"HS 11.7 mm": 12,
-		"HS 17.7 mm": 18,
-		"HS 23.6 mm": 24,
-		"FLe 21 mm x 45 mm": 21,
-	}[args.tape_width]
-
 	command = [
 		"./make_request", "print",
 		"-i", f"'{args.image}'",
@@ -95,7 +78,6 @@ def make_request(args):
 		"--compression", "tiff",
 		"--tape-type", f"'{args.tape_type}'",
 		"--tape-width", f"'{args.tape_width}'",
-		"--tape-width-num", str(tape_width),
 	]
 	if args.half_cut_off:
 		command.append("--half-cut-off")
