@@ -90,6 +90,18 @@ public:
 			if (str[0] == str[str.size() - 1] && (str[0] == '\'' || str[0] == '"'))
 				str = str.substr(1, str.size() - 2);
 
+			if (i < static_cast<int>(m_posArgs.size())) {
+				auto it = m_args.find(m_posArgs[i]);
+				auto &arg = it->second;
+
+				assert(arg.count() == 1);
+				arg.valuesRef().resize(1);
+				arg.valuesRef()[0] = str;
+
+				arg.setPresent();
+				continue;
+			}
+
 			auto it = m_args.find(str);
 			auto &arg = it->second;
 
@@ -120,8 +132,15 @@ public:
 		}
 	}
 
+	void addPositionalArgument(const Arg &arg)
+	{
+		addArgument(arg);
+		m_posArgs.push_back(arg.name());
+	}
+
 	void addArgument(const Arg &arg)
 	{
+		assert(!m_args.contains(arg.name()));
 		m_args[arg.name()] = arg;
 	}
 
@@ -151,6 +170,7 @@ public:
 	}
 
 private:
+	std::vector<std::string_view> m_posArgs;
 	std::unordered_map<std::string_view, Arg> m_args;
 	mutable std::string m_error;
 };

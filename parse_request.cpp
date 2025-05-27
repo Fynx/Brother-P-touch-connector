@@ -16,7 +16,7 @@ struct ParseFlags {
 
 struct PrintFlags {
 	enum Value {
-		WithData = 0x01,
+		WithoutData = 0x01,
 	};
 };
 
@@ -69,7 +69,7 @@ void parse(char *buf, unsigned len, uint8_t parseFlags, uint8_t printFlags)
 			compressed = buf[i] == SelectCompressionMode::Tiff;
 			if (compressed)
 				std::cerr << "\tcompressed\n";
-			if (printFlags & PrintFlags::WithData) {
+			if (printFlags & PrintFlags::WithoutData) {
 				std::cerr << "\nSkipping data check!\n";
 				return;
 			}
@@ -257,7 +257,7 @@ void parse(char *buf, unsigned len, uint8_t parseFlags, uint8_t printFlags)
 int main(int argc, char **argv)
 {
 	ArgParser parser;
-	parser.addArgument(Arg{"-i"});
+	parser.addPositionalArgument(Arg{"input"});
 	parser.addArgument(Arg{"--no-data"}.setCount(0).setOptional());
 
 	parser.parse(argc - 1, argv + 1);
@@ -268,14 +268,14 @@ int main(int argc, char **argv)
 
 	char buf[100000] = {0};
 
-	std::ifstream in{parser.value("-i"), std::ifstream::binary};
+	std::ifstream in{parser.value("input"), std::ifstream::binary};
 	in.read(buf, 100000);
 
 	uint8_t parseFlags = ParseFlags::WithInvalidate;
 
 	uint8_t printFlags = 0;
 	if (parser.has("--no-data"))
-		printFlags |= PrintFlags::WithData;
+		printFlags |= PrintFlags::WithoutData;
 
 	parse(buf, in.gcount(), parseFlags, printFlags);
 

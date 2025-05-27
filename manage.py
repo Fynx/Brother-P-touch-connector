@@ -27,18 +27,21 @@ def parse_args():
 
 def request_status(device_path, attempts=5, wait=1):
 	for i in range(0, attempts):
-		print("requesting status...")
-		subprocess.check_output(["./make_request", "status", "-o", device_path])
+		request_status_cmd = ["./make_request", "status", "-o", device_path]
+		print(" ".join(request_status_cmd))
+		subprocess.check_output(request_status_cmd)
 
 		sleep(wait)
 
+		read_status_cmd = ["./read_status", device_path]
 		try:
-			output = subprocess.check_output(["./read_status", "-i", device_path]).decode("utf-8").strip().split("\n")
+			print(" ".join(read_status_cmd))
+			output = subprocess.check_output(read_status_cmd).decode("utf-8").strip().split("\n")
 			break
 		except subprocess.CalledProcessError:
 			print("failed")
 	else:
-		raise "Failed to read printer status"
+		raise Exception("Failed to read printer status")
 
 	return {e[0].strip(): ":".join(e[1:]).strip() for line in output if (e := line.split(":"))}
 

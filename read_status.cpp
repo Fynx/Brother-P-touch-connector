@@ -126,6 +126,17 @@ struct Status {
 	TextColourInformation textColourInformation;
 	uint8_t reserved[6];
 
+	std::string_view brotherCodeStr() const
+	{
+		switch (brotherCode) {
+			case 0x71: return "PT-P900";
+			case 0x69: return "PT-P900W";
+			case 0x70: return "PT-P950NW";
+			case 0x78: return "PT-P910BT";
+			default: return "unrecognised";
+		}
+	}
+
 	std::string errorStr() const
 	{
 		bool fleTapeEnd = extendedError == ExtendedError::FleTapeEnd;
@@ -332,7 +343,7 @@ void printHex(uint8_t e, std::string_view label)
 int main(int argc, char **argv)
 {
 	ArgParser parser;
-	parser.addArgument(Arg{"-i"});
+	parser.addPositionalArgument(Arg{"input"});
 
 	parser.parse(argc - 1, argv + 1);
 	if (!parser.isValid()) {
@@ -343,7 +354,7 @@ int main(int argc, char **argv)
 	Status status;
 	assert(sizeof(status) == 32u);
 	{
-		const std::string &inputFile = parser.value("-i");
+		const std::string &inputFile = parser.value("input");
 		std::ifstream is{inputFile, std::ios::binary | std::ios::in};
 		if (!is) {
 			std::cerr << "Failed to open '" << inputFile << "'\n";
@@ -363,7 +374,9 @@ int main(int argc, char **argv)
 
 	check(status.printHeadMark, 0x80, "print head mark");
 	check(status.size, 0x20, "size");
-	check(status.brotherCode, 0x42, "brother code");
+
+	std::cout << "brother code: " << status.brotherCodeStr() << "\n";
+
 	check(status.seriesCode, 0x30, "series code");
 	check(status.modelCode, 0x69, "model code");
 	check(status.countryCode, 0x30, "country code");
