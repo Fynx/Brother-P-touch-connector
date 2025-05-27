@@ -18,9 +18,15 @@ public:
 		return m_required;
 	}
 
-	Arg & setRequired(bool required)
+	Arg & setRequired()
 	{
-		m_required = required;
+		m_required = true;
+		return *this;
+	}
+
+	Arg & setOptional()
+	{
+		m_required = false;
 		return *this;
 	}
 

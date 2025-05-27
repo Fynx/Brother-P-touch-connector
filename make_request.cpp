@@ -30,6 +30,7 @@ struct SwitchDynamicCommandMode {
 	} v = Raster;
 };
 
+// TODO send every page??
 struct PrintInformationCommand {
 	const char m[3] = {ESCAPE, 'i', 'z'};
 
@@ -73,7 +74,14 @@ struct PageNumberInCutEachLabels {
 
 struct AdvancedModeSettings {
 	const char m[3] = {ESCAPE, 'i', 'K'};
-	uint8_t v = 12;
+	bool draftPrinting : 1 = false;
+	bool unused1 : 1 = false;
+	bool halfCut : 1 = true;
+	bool noChainPrinting : 1 = true;
+	bool specialTapeNoCutting : 1 = false;
+	bool unused2 : 1 = false;
+	bool highResolutionPrinting : 1 = false;
+	bool noBufferCleaningWhenPrinting : 1 = false;
 };
 
 struct SpecifyMarginAmount {
@@ -184,7 +192,7 @@ struct Flags {
 static unsigned HeightScale = 3;
 static unsigned TestImageWidth = 15 * 5;
 
-void writePng(std::ofstream &out, const png::image<png::rgb_pixel> &img, std::string_view mediaWidth, uint8_t flags)
+void writePng(std::ofstream &out, const png::image<png::rgb_pixel> &img, std::string_view mediaWidth, unsigned copies, uint8_t flags)
 {
 	static const unsigned Height = 70;
 	static const unsigned Pins = 560;
@@ -226,45 +234,49 @@ void writePng(std::ofstream &out, const png::image<png::rgb_pixel> &img, std::st
 	auto byteValue = [](uint8_t value1, uint8_t value2) { return ((15 - value1) << 4) + 15 - value2; };  // values have to be between 0 and 15
 	auto intensity = [](const png::basic_rgb_pixel<unsigned char> &p) { return (p.red + p.green + p.blue) / 3 / 16; };
 
-	for (png::uint_32 x = 0; x < width; ++x) {
-		zeroLine = true;
-		png::uint_32 y = 0;
+	for (unsigned copyIndex = 0; copyIndex < copies; ++copyIndex) {
+		for (png::uint_32 x = 0; x < width; ++x) {
+			zeroLine = true;
+			png::uint_32 y = 0;
 
-		for (; y < leftMargin; ++y)
-			vline[y] = 0;
+			for (; y < leftMargin; ++y)
+				vline[y] = 0;
 
-		if (flags & Flags::Test) {
-			for (; y < leftMargin + height; ++y) {
-				vline[y] = byteValue(x / 5, x / 5);
-				zeroLine = false;
-			}
-		} else {
-			for (; y < leftMargin + height; ++y) {
-				// TODO iterate like a human being
-				auto p1 = img.get_pixel(x, (y - leftMargin) * 2);
-				auto p2 = img.get_pixel(x, (y - leftMargin) * 2 + 1);
-				vline[y] = byteValue(intensity(p1), intensity(p2));
-				zeroLine &= vline[y] == 0;
-			}
-		}
-
-		for (; y < Height; ++y)
-			vline[y] = 0;
-
-		for (unsigned rep = 0; rep < HeightScale; ++rep) {
-			if (zeroLine) {
-				out << 'Z';
-			} else if (flags & Flags::Compressed) {
-				writeEncodedLine(out, vline, Height);
+			if (flags & Flags::Test) {
+				for (; y < leftMargin + height; ++y) {
+					vline[y] = byteValue(x / 5, x / 5);
+					zeroLine = false;
+				}
 			} else {
-				out << 'G' << static_cast<uint8_t>(70) << static_cast<uint8_t>(0);
-				for (png::uint_32 y = 0; y < Height; ++y)
-					out << vline[y];
+				for (; y < leftMargin + height; ++y) {
+					// TODO iterate like a human being
+					auto p1 = img.get_pixel(x, (y - leftMargin) * 2);
+					auto p2 = img.get_pixel(x, (y - leftMargin) * 2 + 1);
+					vline[y] = byteValue(intensity(p1), intensity(p2));
+					zeroLine &= vline[y] == 0;
+				}
+			}
+
+			for (; y < Height; ++y)
+				vline[y] = 0;
+
+			for (unsigned rep = 0; rep < HeightScale; ++rep) {
+				if (zeroLine) {
+					out << 'Z';
+				} else if (flags & Flags::Compressed) {
+					writeEncodedLine(out, vline, Height);
+				} else {
+					out << 'G' << static_cast<uint8_t>(70) << static_cast<uint8_t>(0);
+					for (png::uint_32 y = 0; y < Height; ++y)
+						out << vline[y];
+				}
 			}
 		}
+		if (copyIndex + 1 < copies)
+			out << static_cast<uint8_t>(0x0c);
 	}
 
-	// out << 'Z' << 'Z';
+	out << static_cast<uint8_t>(0x1a);  // last page marker
 }
 
 int main(int argc, char **argv)
@@ -289,10 +301,13 @@ int main(int argc, char **argv)
 		case Command::Print:
 			parser.addArgument(Arg{"-i"});
 			parser.addArgument(Arg{"-o"});
+			parser.addArgument(Arg{"--copies"});
 			parser.addArgument(Arg{"--compression"});
 			parser.addArgument(Arg{"--tape-type"});
 			parser.addArgument(Arg{"--tape-width"});
 			parser.addArgument(Arg{"--tape-width-num"});  // TODO remove
+			parser.addArgument(Arg{"--half-cut-off"}.setOptional().setCount(0));
+			parser.addArgument(Arg{"--chain-printing"}.setOptional().setCount(0));
 			break;
 		case Command::Status:
 			parser.addArgument(Arg{"-o"});
@@ -335,7 +350,14 @@ int main(int argc, char **argv)
 		writeStruct(out, variousModeSettings);
 
 		writeStruct(out, PageNumberInCutEachLabels{});
-		writeStruct(out, AdvancedModeSettings{});
+
+		AdvancedModeSettings advancedModeSettings;
+		if (parser.has("--half-cut-off"))
+			advancedModeSettings.halfCut = false;
+		if (parser.has("--chain-printing"))
+			advancedModeSettings.noChainPrinting = false;
+		writeStruct(out, advancedModeSettings);
+
 		writeStruct(out, SpecifyMarginAmount{});
 
 		SelectCompressionMode compressionMode;
@@ -350,9 +372,7 @@ int main(int argc, char **argv)
 		}
 		writeStruct(out, compressionMode);
 
-		writePng(out, image, parser.value("--tape-width"), flags);
-
-		out << static_cast<uint8_t>(0x1a);  // last page marker
+		writePng(out, image, parser.value("--tape-width"), std::stoi(parser.value("--copies")), flags);
 
 	} else if (command == Command::Status) {
 		std::ofstream out(parser.value("-o"), std::ofstream::binary | std::ios_base::app);

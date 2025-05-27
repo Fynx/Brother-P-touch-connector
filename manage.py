@@ -10,7 +10,7 @@ from time import sleep
 def parse_args():
 	parser = argparse.ArgumentParser()
 
-	parser.add_argument("--initialise", action='store_true')
+	parser.add_argument("--initialise", action="store_true")
 	parser.add_argument("--device-path", "-d", required=False, default="/dev/usb/lp1")
 	parser.add_argument("--tape-colour", required=True)
 	parser.add_argument("--tape-width", required=True)
@@ -18,6 +18,9 @@ def parse_args():
 	parser.add_argument("--text-colour", required=True)
 	parser.add_argument("--image", "-i", required=True, help="use 'test' for test page printing")
 	parser.add_argument("--compression", required=False, choices=["no compression", "tiff"], default="tiff")
+	parser.add_argument("--copies", required=False, default=1, type=int)
+	parser.add_argument("--half-cut-off", action="store_true")
+	parser.add_argument("--chain-printing", action="store_true")
 
 	return parser.parse_args()
 
@@ -88,11 +91,17 @@ def make_request(args):
 		"./make_request", "print",
 		"-i", f"'{args.image}'",
 		"-o", f"'{request_path}'",
+		"--copies", str(args.copies),
 		"--compression", "tiff",
 		"--tape-type", f"'{args.tape_type}'",
 		"--tape-width", f"'{args.tape_width}'",
 		"--tape-width-num", str(tape_width),
 	]
+	if args.half_cut_off:
+		command.append("--half-cut-off")
+	if args.chain_printing:
+		command.append("--chain-printing")
+
 	print(" ".join(command))
 	subprocess.check_output(command)
 
