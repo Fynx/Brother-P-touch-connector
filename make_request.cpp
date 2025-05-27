@@ -272,6 +272,54 @@ void writePng(std::ofstream &out, const png::image<png::rgb_pixel> &img, std::st
 	}
 }
 
+void writePrintRequest(std::ofstream &out, const ArgParser &parser, const png::image<png::rgb_pixel> &image, unsigned imageWidth, uint8_t flags)
+{
+	unsigned copies = std::stoi(parser.value("--copies"));
+	for (unsigned copyIndex = 0; copyIndex < copies; ++copyIndex) {
+		writeStruct(out, SwitchDynamicCommandMode{});
+
+		PrintInformationCommand printInformationCommand;
+		printInformationCommand.mediaWidth = std::stoi(parser.value("--tape-width-num"));
+		printInformationCommand.setRasterNumber(HeightScale * imageWidth);
+		if (copyIndex + 1 == copies)
+			printInformationCommand.pageIndex = PrintInformationCommand::Last;
+		else if (copyIndex == 0)
+			printInformationCommand.pageIndex = PrintInformationCommand::Starting;
+		else
+			printInformationCommand.pageIndex = PrintInformationCommand::Other;
+		writeStruct(out, printInformationCommand);
+
+		VariousModeSettings variousModeSettings;
+		variousModeSettings.v = VariousModeSettings::AutoCut;
+		writeStruct(out, variousModeSettings);
+
+		writeStruct(out, PageNumberInCutEachLabels{});
+
+		AdvancedModeSettings advancedModeSettings;
+		if (parser.has("--half-cut-off"))
+			advancedModeSettings.halfCut = false;
+		if (parser.has("--chain-printing"))
+			advancedModeSettings.noChainPrinting = false;
+		writeStruct(out, advancedModeSettings);
+
+		writeStruct(out, SpecifyMarginAmount{});
+
+		SelectCompressionMode compressionMode;
+		if (flags & Flags::Compressed)
+			compressionMode.v = SelectCompressionMode::Tiff;
+		else
+			compressionMode.v = SelectCompressionMode::NoCompression;
+		writeStruct(out, compressionMode);
+
+		writePng(out, image, parser.value("--tape-width"), flags);
+
+		if (copyIndex + 1 < copies)
+			out << static_cast<uint8_t>(0x0c);  // page end marker
+		else
+			out << static_cast<uint8_t>(0x1a);  // final page marker
+	}
+}
+
 int main(int argc, char **argv)
 {
 	enum class Command {
@@ -329,57 +377,16 @@ int main(int argc, char **argv)
 			imageWidth = image.get_width();
 		}
 
+		if (parser.value("--compression") == "tiff") {
+			flags |= Flags::Compressed;
+		} else if (parser.value("--compression") != "no compression") {
+			std::cerr << "Invalid compression mode: " << parser.value("--compression") << "\n";
+			return 1;
+		}
+
 		std::ofstream out(parser.value("-o"), std::ofstream::binary | std::ios_base::app);
 
-		unsigned copies = std::stoi(parser.value("--copies"));
-		for (unsigned copyIndex = 0; copyIndex < copies; ++copyIndex) {
-			writeStruct(out, SwitchDynamicCommandMode{});
-
-			PrintInformationCommand printInformationCommand;
-			printInformationCommand.mediaWidth = std::stoi(parser.value("--tape-width-num"));
-			printInformationCommand.setRasterNumber(HeightScale * imageWidth);
-			if (copyIndex + 1 == copies)
-				printInformationCommand.pageIndex = PrintInformationCommand::Last;
-			else if (copyIndex == 0)
-				printInformationCommand.pageIndex = PrintInformationCommand::Starting;
-			else
-				printInformationCommand.pageIndex = PrintInformationCommand::Other;
-			writeStruct(out, printInformationCommand);
-
-			VariousModeSettings variousModeSettings;
-			variousModeSettings.v = VariousModeSettings::AutoCut;
-			writeStruct(out, variousModeSettings);
-
-			writeStruct(out, PageNumberInCutEachLabels{});
-
-			AdvancedModeSettings advancedModeSettings;
-			if (parser.has("--half-cut-off"))
-				advancedModeSettings.halfCut = false;
-			if (parser.has("--chain-printing"))
-				advancedModeSettings.noChainPrinting = false;
-			writeStruct(out, advancedModeSettings);
-
-			writeStruct(out, SpecifyMarginAmount{});
-
-			SelectCompressionMode compressionMode;
-			if (parser.value("--compression") == "no compression") {
-				compressionMode.v = SelectCompressionMode::NoCompression;
-			} else if (parser.value("--compression") == "tiff") {
-				compressionMode.v = SelectCompressionMode::Tiff;
-				flags |= Flags::Compressed;
-			} else {
-				std::cerr << "Invalid compression mode: " << parser.value("--compression") << "\n";
-				return 1;
-			}
-			writeStruct(out, compressionMode);
-
-			writePng(out, image, parser.value("--tape-width"), flags);
-
-			if (copyIndex + 1 < copies)
-				out << static_cast<uint8_t>(0x0c);  // page end marker
-			else
-				out << static_cast<uint8_t>(0x1a);  // final page marker
-		}
+		writePrintRequest(out, parser, image, imageWidth, flags);
 
 	} else if (command == Command::Status) {
 		std::ofstream out(parser.value("-o"), std::ofstream::binary | std::ios_base::app);
