@@ -238,8 +238,9 @@ Exec writePng(std::ofstream &out, const png::image<png::rgb_pixel> &img, std::st
 	uint8_t vline[Height];
 	bool zeroLine;
 
-	auto byteValue = [](uint8_t value1, uint8_t value2) { return ((15 - value1) << 4) + 15 - value2; };  // values have to be between 0 and 15
-	auto intensity = [](const png::basic_rgb_pixel<unsigned char> &p) { return (p.red + p.green + p.blue) / 3 / 16; };
+	static uint8_t GrayScale[16] = {0, 8, 4, 1, 2, 12, 10, 9, 6, 3, 5, 14, 13, 11, 7, 15};
+	auto byteValue = [](uint8_t value1, uint8_t value2) { return (value1 << 4) + value2; };  // values have to be between 0 and 15
+	auto intensity = [](const png::basic_rgb_pixel<unsigned char> &p) { return GrayScale[15 - (p.red + p.green + p.blue) / 3 / 16]; };
 
 	for (png::uint_32 x = 0; x < width; ++x) {
 		zeroLine = true;
@@ -250,7 +251,8 @@ Exec writePng(std::ofstream &out, const png::image<png::rgb_pixel> &img, std::st
 
 		if (flags & Flags::Test) {
 			for (; y < leftMargin + height; ++y) {
-				vline[y] = byteValue(x / 5, x / 5);
+				assert(x / 5 < 16);
+				vline[y] = byteValue(GrayScale[15 - x / 5], GrayScale[15 - x / 5]);
 				zeroLine = false;
 			}
 		} else {
