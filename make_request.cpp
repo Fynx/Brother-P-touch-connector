@@ -30,13 +30,12 @@ struct SwitchDynamicCommandMode {
 	} v = Raster;
 };
 
-// TODO send every page??
 struct PrintInformationCommand {
 	const char m[3] = {ESCAPE, 'i', 'z'};
 
 	uint8_t usedFlags = 132;
 	uint8_t mediaType = 0;
-	uint8_t mediaWidth = 36;
+	uint8_t mediaWidth;
 	uint8_t mediaLength = 0;
 
 	uint8_t rasterNumber[4];
@@ -192,7 +191,7 @@ struct Flags {
 static unsigned HeightScale = 3;
 static unsigned TestImageWidth = 15 * 5;
 
-void writePng(std::ofstream &out, const png::image<png::rgb_pixel> &img, std::string_view mediaWidth, unsigned copies, uint8_t flags)
+void writePng(std::ofstream &out, const png::image<png::rgb_pixel> &img, std::string_view mediaWidth, uint8_t flags)
 {
 	static const unsigned Height = 70;
 	static const unsigned Pins = 560;
@@ -234,49 +233,43 @@ void writePng(std::ofstream &out, const png::image<png::rgb_pixel> &img, std::st
 	auto byteValue = [](uint8_t value1, uint8_t value2) { return ((15 - value1) << 4) + 15 - value2; };  // values have to be between 0 and 15
 	auto intensity = [](const png::basic_rgb_pixel<unsigned char> &p) { return (p.red + p.green + p.blue) / 3 / 16; };
 
-	for (unsigned copyIndex = 0; copyIndex < copies; ++copyIndex) {
-		for (png::uint_32 x = 0; x < width; ++x) {
-			zeroLine = true;
-			png::uint_32 y = 0;
+	for (png::uint_32 x = 0; x < width; ++x) {
+		zeroLine = true;
+		png::uint_32 y = 0;
 
-			for (; y < leftMargin; ++y)
-				vline[y] = 0;
+		for (; y < leftMargin; ++y)
+			vline[y] = 0;
 
-			if (flags & Flags::Test) {
-				for (; y < leftMargin + height; ++y) {
-					vline[y] = byteValue(x / 5, x / 5);
-					zeroLine = false;
-				}
-			} else {
-				for (; y < leftMargin + height; ++y) {
-					// TODO iterate like a human being
-					auto p1 = img.get_pixel(x, (y - leftMargin) * 2);
-					auto p2 = img.get_pixel(x, (y - leftMargin) * 2 + 1);
-					vline[y] = byteValue(intensity(p1), intensity(p2));
-					zeroLine &= vline[y] == 0;
-				}
+		if (flags & Flags::Test) {
+			for (; y < leftMargin + height; ++y) {
+				vline[y] = byteValue(x / 5, x / 5);
+				zeroLine = false;
 			}
-
-			for (; y < Height; ++y)
-				vline[y] = 0;
-
-			for (unsigned rep = 0; rep < HeightScale; ++rep) {
-				if (zeroLine) {
-					out << 'Z';
-				} else if (flags & Flags::Compressed) {
-					writeEncodedLine(out, vline, Height);
-				} else {
-					out << 'G' << static_cast<uint8_t>(70) << static_cast<uint8_t>(0);
-					for (png::uint_32 y = 0; y < Height; ++y)
-						out << vline[y];
-				}
+		} else {
+			for (; y < leftMargin + height; ++y) {
+				// TODO iterate like a human being
+				auto p1 = img.get_pixel(x, (y - leftMargin) * 2);
+				auto p2 = img.get_pixel(x, (y - leftMargin) * 2 + 1);
+				vline[y] = byteValue(intensity(p1), intensity(p2));
+				zeroLine &= vline[y] == 0;
 			}
 		}
-		if (copyIndex + 1 < copies)
-			out << static_cast<uint8_t>(0x0c);
-	}
 
-	out << static_cast<uint8_t>(0x1a);  // last page marker
+		for (; y < Height; ++y)
+			vline[y] = 0;
+
+		for (unsigned rep = 0; rep < HeightScale; ++rep) {
+			if (zeroLine) {
+				out << 'Z';
+			} else if (flags & Flags::Compressed) {
+				writeEncodedLine(out, vline, Height);
+			} else {
+				out << 'G' << static_cast<uint8_t>(70) << static_cast<uint8_t>(0);
+				for (png::uint_32 y = 0; y < Height; ++y)
+					out << vline[y];
+			}
+		}
+	}
 }
 
 int main(int argc, char **argv)
@@ -338,41 +331,55 @@ int main(int argc, char **argv)
 
 		std::ofstream out(parser.value("-o"), std::ofstream::binary | std::ios_base::app);
 
-		writeStruct(out, SwitchDynamicCommandMode{});
+		unsigned copies = std::stoi(parser.value("--copies"));
+		for (unsigned copyIndex = 0; copyIndex < copies; ++copyIndex) {
+			writeStruct(out, SwitchDynamicCommandMode{});
 
-		PrintInformationCommand printInformationCommand;
-		printInformationCommand.mediaWidth = std::stoi(parser.value("--tape-width-num"));
-		printInformationCommand.setRasterNumber(HeightScale * imageWidth);
-		writeStruct(out, printInformationCommand);
+			PrintInformationCommand printInformationCommand;
+			printInformationCommand.mediaWidth = std::stoi(parser.value("--tape-width-num"));
+			printInformationCommand.setRasterNumber(HeightScale * imageWidth);
+			if (copyIndex + 1 == copies)
+				printInformationCommand.pageIndex = PrintInformationCommand::Last;
+			else if (copyIndex == 0)
+				printInformationCommand.pageIndex = PrintInformationCommand::Starting;
+			else
+				printInformationCommand.pageIndex = PrintInformationCommand::Other;
+			writeStruct(out, printInformationCommand);
 
-		VariousModeSettings variousModeSettings;
-		variousModeSettings.v = VariousModeSettings::AutoCut;
-		writeStruct(out, variousModeSettings);
+			VariousModeSettings variousModeSettings;
+			variousModeSettings.v = VariousModeSettings::AutoCut;
+			writeStruct(out, variousModeSettings);
 
-		writeStruct(out, PageNumberInCutEachLabels{});
+			writeStruct(out, PageNumberInCutEachLabels{});
 
-		AdvancedModeSettings advancedModeSettings;
-		if (parser.has("--half-cut-off"))
-			advancedModeSettings.halfCut = false;
-		if (parser.has("--chain-printing"))
-			advancedModeSettings.noChainPrinting = false;
-		writeStruct(out, advancedModeSettings);
+			AdvancedModeSettings advancedModeSettings;
+			if (parser.has("--half-cut-off"))
+				advancedModeSettings.halfCut = false;
+			if (parser.has("--chain-printing"))
+				advancedModeSettings.noChainPrinting = false;
+			writeStruct(out, advancedModeSettings);
 
-		writeStruct(out, SpecifyMarginAmount{});
+			writeStruct(out, SpecifyMarginAmount{});
 
-		SelectCompressionMode compressionMode;
-		if (parser.value("--compression") == "no compression") {
-			compressionMode.v = SelectCompressionMode::NoCompression;
-		} else if (parser.value("--compression") == "tiff") {
-			compressionMode.v = SelectCompressionMode::Tiff;
-			flags |= Flags::Compressed;
-		} else {
-			std::cerr << "Invalid compression mode: " << parser.value("--compression") << "\n";
-			return 1;
+			SelectCompressionMode compressionMode;
+			if (parser.value("--compression") == "no compression") {
+				compressionMode.v = SelectCompressionMode::NoCompression;
+			} else if (parser.value("--compression") == "tiff") {
+				compressionMode.v = SelectCompressionMode::Tiff;
+				flags |= Flags::Compressed;
+			} else {
+				std::cerr << "Invalid compression mode: " << parser.value("--compression") << "\n";
+				return 1;
+			}
+			writeStruct(out, compressionMode);
+
+			writePng(out, image, parser.value("--tape-width"), flags);
+
+			if (copyIndex + 1 < copies)
+				out << static_cast<uint8_t>(0x0c);  // page end marker
+			else
+				out << static_cast<uint8_t>(0x1a);  // final page marker
 		}
-		writeStruct(out, compressionMode);
-
-		writePng(out, image, parser.value("--tape-width"), std::stoi(parser.value("--copies")), flags);
 
 	} else if (command == Command::Status) {
 		std::ofstream out(parser.value("-o"), std::ofstream::binary | std::ios_base::app);
