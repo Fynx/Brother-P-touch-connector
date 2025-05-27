@@ -99,7 +99,6 @@ struct SelectCompressionMode {
 	uint8_t v = NoCompression;
 };
 
-
 template <class T>
 void writeStruct(std::ofstream &out, const T &c)
 {
@@ -191,7 +190,13 @@ struct Flags {
 static unsigned HeightScale = 3;
 static unsigned TestImageWidth = 15 * 5;
 
-void writePng(std::ofstream &out, const png::image<png::rgb_pixel> &img, std::string_view mediaWidth, uint8_t flags)
+struct Exec {
+	std::string error;
+
+	inline operator bool() const { return error.empty(); }
+};
+
+Exec writePng(std::ofstream &out, const png::image<png::rgb_pixel> &img, std::string_view mediaWidth, uint8_t flags)
 {
 	static const unsigned Height = 70;
 	static const unsigned Pins = 560;
@@ -213,6 +218,9 @@ void writePng(std::ofstream &out, const png::image<png::rgb_pixel> &img, std::st
 		// FLe 21 mm x 45 mm
 		// HS 9.0 mm, HS 11.2 mm, HS 21.0 mm, HS 31.0 mm
 	};
+
+	if (!Margins.contains(mediaWidth))
+		return Exec(std::format("writePng: unrecognised media width ", mediaWidth));
 
 	// left and right margins are swapped as the data is mirrored
 	unsigned leftMargin = Margins.at(mediaWidth).second * Height / Pins;
@@ -270,9 +278,11 @@ void writePng(std::ofstream &out, const png::image<png::rgb_pixel> &img, std::st
 			}
 		}
 	}
+
+	return Exec{};
 }
 
-void writePrintRequest(std::ofstream &out, const ArgParser &parser, const png::image<png::rgb_pixel> &image, unsigned imageWidth, uint8_t flags)
+Exec writePrintRequest(std::ofstream &out, const ArgParser &parser, const png::image<png::rgb_pixel> &image, unsigned imageWidth, uint8_t flags)
 {
 	static const std::unordered_map<std::string_view, unsigned> TapeWidth {
 		{ "3.5 mm", 4 },
@@ -290,12 +300,16 @@ void writePrintRequest(std::ofstream &out, const ArgParser &parser, const png::i
 		{ "FLe 21 mm x 45 mm", 21 },
 	};
 
+	auto tapeWidth = parser.value("--tape-width");
+	if (!TapeWidth.contains(tapeWidth))
+		return Exec(std::format("writePrintRequest: unrecognised tape width ", tapeWidth));
+
 	unsigned copies = std::stoi(parser.value("--copies"));
 	for (unsigned copyIndex = 0; copyIndex < copies; ++copyIndex) {
 		writeStruct(out, SwitchDynamicCommandMode{});
 
 		PrintInformationCommand printInformationCommand;
-		printInformationCommand.mediaWidth = TapeWidth.at(parser.value("--tape-width"));
+		printInformationCommand.mediaWidth = TapeWidth.at(tapeWidth);
 		printInformationCommand.setRasterNumber(HeightScale * imageWidth);
 		if (copyIndex + 1 == copies)
 			printInformationCommand.pageIndex = PrintInformationCommand::Last;
@@ -327,13 +341,17 @@ void writePrintRequest(std::ofstream &out, const ArgParser &parser, const png::i
 			compressionMode.v = SelectCompressionMode::NoCompression;
 		writeStruct(out, compressionMode);
 
-		writePng(out, image, parser.value("--tape-width"), flags);
+		auto exec = writePng(out, image, parser.value("--tape-width"), flags);
+		if (!exec)
+			return exec;
 
 		if (copyIndex + 1 < copies)
 			out << static_cast<uint8_t>(0x0c);  // page end marker
 		else
 			out << static_cast<uint8_t>(0x1a);  // final page marker
 	}
+
+	return Exec{};
 }
 
 int main(int argc, char **argv)
@@ -401,7 +419,11 @@ int main(int argc, char **argv)
 
 		std::ofstream out(parser.value("-o"), std::ofstream::binary | std::ios_base::app);
 
-		writePrintRequest(out, parser, image, imageWidth, flags);
+		auto exec = writePrintRequest(out, parser, image, imageWidth, flags);
+		if (!exec) {
+			std::cerr << exec.error << "\n";
+			return 1;
+		}
 
 	} else if (command == Command::Status) {
 		std::ofstream out(parser.value("-o"), std::ofstream::binary | std::ios_base::app);
