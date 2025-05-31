@@ -8,6 +8,7 @@
 #include "png++/png.hpp"
 
 #include "ArgParser.hpp"
+#include "constants.hpp"
 
 
 const char ESCAPE = static_cast<char>(27);
@@ -252,30 +253,12 @@ Exec writePng(std::ofstream &out, const png::image<png::rgb_pixel> &img, std::st
 	static const unsigned Height = 70;
 	static const unsigned Pins = 560;
 
-	static const std::unordered_map<std::string_view, std::pair<unsigned, unsigned> > Margins {
-		{ "3.5 mm", { 248, 264 } },
-		{ "6 mm", { 240, 256 } },
-		{ "9 mm", { 219, 235 } },
-		{ "12 mm", { 197, 213 } },
-		{ "18 mm", { 155, 171 } },
-		{ "24 mm", { 112, 128 } },
-		{ "36 mm", { 45, 61 } },
-		{ "HS 5.8 mm", { 244, 260 } },
-		{ "HS 8.8 mm", { 224, 240 } },
-		{ "HS 11.7 mm", { 206, 222 } },
-		{ "HS 17.7 mm", { 166, 182 } },
-		{ "HS 23.6 mm", { 144, 160 } },
-		// ??
-		// FLe 21 mm x 45 mm
-		// HS 9.0 mm, HS 11.2 mm, HS 21.0 mm, HS 31.0 mm
-	};
-
 	if (!Margins.contains(mediaWidth))
 		return Exec(std::format("writePng: unrecognised media width ", mediaWidth));
 
 	// left and right margins are swapped as the data is mirrored
-	unsigned leftMargin = Margins.at(mediaWidth).second;  // * Height / Pins;
-	unsigned rightMargin = Margins.at(mediaWidth).first;  // * Height / Pins;
+	unsigned leftMargin = bp::margins().at(mediaWidth).second;  // * Height / Pins;
+	unsigned rightMargin = bp::margins().at(mediaWidth).first;  // * Height / Pins;
 	rightMargin += 4 - (leftMargin + rightMargin) % 4;  // adjust to full bytes
 
 	png::uint_32 width = imageWidth;
@@ -334,24 +317,8 @@ Exec writePng(std::ofstream &out, const png::image<png::rgb_pixel> &img, std::st
 
 Exec writePrintRequest(std::ofstream &out, const ArgParser &parser, const png::image<png::rgb_pixel> &image, unsigned imageWidth, uint8_t flags)
 {
-	static const std::unordered_map<std::string_view, unsigned> TapeWidth {
-		{ "3.5 mm", 4 },
-		{ "6 mm", 6 },
-		{ "9 mm", 9 },
-		{ "12 mm", 12 },
-		{ "18 mm", 18 },
-		{ "24 mm", 24 },
-		{ "36 mm", 36 },
-		{ "HS 5.8 mm", 6 },
-		{ "HS 8.8 mm", 9 },
-		{ "HS 11.7 mm", 12 },
-		{ "HS 17.7 mm", 18 },
-		{ "HS 23.6 mm", 24 },
-		{ "FLe 21 mm x 45 mm", 21 },
-	};
-
 	auto tapeWidth = parser.value("--tape-width");
-	if (!TapeWidth.contains(tapeWidth))
+	if (!bp::tapeWidth().contains(tapeWidth))
 		return Exec(std::format("writePrintRequest: unrecognised tape width ", tapeWidth));
 
 	unsigned copies = std::stoi(parser.value("--copies"));
@@ -359,7 +326,7 @@ Exec writePrintRequest(std::ofstream &out, const ArgParser &parser, const png::i
 		writeStruct(out, SwitchDynamicCommandMode{});
 
 		PrintInformationCommand printInformationCommand;
-		printInformationCommand.mediaWidth = TapeWidth.at(tapeWidth);
+		printInformationCommand.mediaWidth = bp::tapeWidth().at(tapeWidth);
 		printInformationCommand.setRasterNumber(4 * imageWidth);
 		if (copyIndex + 1 == copies)
 			printInformationCommand.pageIndex = PrintInformationCommand::Last;

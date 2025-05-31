@@ -8,7 +8,7 @@ endif
 
 all: make_request read_status parse_request
 
-make_request: make_request.cpp ArgParser.hpp png++/*
+make_request: make_request.cpp ArgParser.hpp constants.hpp png++/*
 	$(CXX) $(CXXFLAGS) `libpng-config --cflags --ldflags` make_request.cpp -o make_request
 
 read_status: read_status.cpp ArgParser.hpp
