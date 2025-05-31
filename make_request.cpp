@@ -1,7 +1,9 @@
+#include <algorithm>
 #include <cassert>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <random>
 
 #include "png++/png.hpp"
 
@@ -187,13 +189,63 @@ struct Flags {
 	};
 };
 
-static unsigned TestImageWidth = 15 * 8;
+static unsigned TestImageWidth = 16 * 8;
 
 struct Exec {
 	std::string error;
 
 	inline operator bool() const { return error.empty(); }
 };
+
+namespace {
+	// uint16_t randomMask(uint8_t bitsOn)
+	// {
+	// 	static auto rng = std::default_random_engine{};
+	//
+	// 	unsigned mask[16];
+	// 	for (unsigned i = 0; i < 16; ++i)
+	// 		mask[i] = i;
+	// 	std::ranges::shuffle(mask, rng);
+	//
+	// 	uint16_t p = 0;
+	// 	for (uint8_t i = 0; i < bitsOn; ++i)
+	// 		p |= 1 << mask[i];
+	// 	return p;
+	// };
+	//
+	// uint16_t patternMask(uint8_t bitsOn)
+	// {
+	// 	static const unsigned Mask[16] = {6, 9, 0, 15, 12, 3, 5, 10, 4, 11, 2, 13, 7, 8, 1, 14};
+	//
+	// 	uint16_t p = 0;
+	// 	for (uint8_t i = 0; i < bitsOn; ++i)
+	// 		p |= 1 << Mask[i];
+	// 	return p;
+	// };
+
+	uint16_t alternatingPatternMask(uint8_t bitsOn)
+	{
+		static const unsigned Mask[16] = {6, 9, 0, 15, 12, 3, 5, 10, 4, 11, 2, 13, 7, 8, 1, 14};
+		static bool transpose = false;
+
+		uint16_t p = 0;
+		for (uint8_t i = 0; i < 4; ++i) {
+			for (uint8_t j = 0; j < 4; ++j) {
+				if (transpose) {
+					if (i * 4 + j < bitsOn)
+						p |= 1 << Mask[4 * i + j];
+				} else {
+					if (j * 4 + i < bitsOn)
+						p |= 1 << Mask[4 * j + i];
+				}
+			}
+		}
+
+		transpose = !transpose;
+
+		return p;
+	};
+}
 
 Exec writePng(std::ofstream &out, const png::image<png::rgb_pixel> &img, std::string_view mediaWidth, unsigned imageWidth, uint8_t flags)
 {
@@ -238,15 +290,7 @@ Exec writePng(std::ofstream &out, const png::image<png::rgb_pixel> &img, std::st
 	bool zeroLine[4];
 
 	auto intensity = [](const png::basic_rgb_pixel<unsigned char> &p) { return 15 - (p.red + p.green + p.blue) / 3 / 16; };
-
-	auto mask = [](uint8_t bitsOn)
-		{
-			static const unsigned Mask[16] = {6, 9, 0, 15, 12, 3, 5, 10, 4, 11, 2, 13, 7, 8, 1, 14};
-			uint16_t p = 0;
-			for (uint8_t i = 0; i < bitsOn; ++i)
-				p |= 1 << Mask[i];
-			return p;
-		};
+	auto maskFn = ::alternatingPatternMask;
 
 	for (png::uint_32 x = 0; x < width; ++x) {
 		std::memset(vline, 0, sizeof vline);
@@ -255,16 +299,16 @@ Exec writePng(std::ofstream &out, const png::image<png::rgb_pixel> &img, std::st
 		for (png::uint_32 y = 0; y < height; ++y) {
 			uint16_t pixel;
 			if (flags & Flags::Test)
-				pixel = mask(x / 8);
+				pixel = maskFn(x / 8 + 1);
 			else
-				pixel = mask(intensity(img.get_pixel(x, y)));
+				pixel = maskFn(intensity(img.get_pixel(x, y)));
 
 			for (unsigned i = 0; i < 4; ++i) {
 				for (unsigned j = 0; j < 4; ++j) {
 					if (pixel & (1 << (4 * i + j))) {
 						unsigned pin = leftMargin + y * 4 + j;
 						unsigned byteNr = pin / 8;
-						unsigned bitInPixel = 8 - pin % 8;
+						unsigned bitInPixel = 7 - pin % 8;
 						vline[i][byteNr] |= 1 << bitInPixel;
 						zeroLine[i] = false;
 					}
