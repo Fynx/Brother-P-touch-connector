@@ -63,7 +63,7 @@ struct VariousModeSettings {
 		MirrorPrinting = 0x80,
 	};
 
-	uint8_t v = AutoCut;
+	uint8_t v = 0;
 };
 
 struct PageNumberInCutEachLabels {
@@ -187,8 +187,7 @@ struct Flags {
 	};
 };
 
-static unsigned HeightScale = 3;
-static unsigned TestImageWidth = 15 * 5;
+static unsigned TestImageWidth = 15 * 8;
 
 struct Exec {
 	std::string error;
@@ -196,7 +195,7 @@ struct Exec {
 	inline operator bool() const { return error.empty(); }
 };
 
-Exec writePng(std::ofstream &out, const png::image<png::rgb_pixel> &img, std::string_view mediaWidth, uint8_t flags)
+Exec writePng(std::ofstream &out, const png::image<png::rgb_pixel> &img, std::string_view mediaWidth, unsigned imageWidth, uint8_t flags)
 {
 	static const unsigned Height = 70;
 	static const unsigned Pins = 560;
@@ -223,60 +222,65 @@ Exec writePng(std::ofstream &out, const png::image<png::rgb_pixel> &img, std::st
 		return Exec(std::format("writePng: unrecognised media width ", mediaWidth));
 
 	// left and right margins are swapped as the data is mirrored
-	unsigned leftMargin = Margins.at(mediaWidth).second * Height / Pins;
-	unsigned rightMargin = Margins.at(mediaWidth).first * Height / Pins;
+	unsigned leftMargin = Margins.at(mediaWidth).second;  // * Height / Pins;
+	unsigned rightMargin = Margins.at(mediaWidth).first;  // * Height / Pins;
+	rightMargin += 4 - (leftMargin + rightMargin) % 4;  // adjust to full bytes
 
-	png::uint_32 height = Height - (leftMargin + rightMargin);
-	png::uint_32 width = TestImageWidth;
-	if (!(flags & Flags::Test)) {
-		height = img.get_height() / 2;  // one byte takes 2 pixels
-		std::cerr << "left margin: " << leftMargin << ", right margin: " << rightMargin << ", height: " << height << "\n";
-		assert(Height - height == leftMargin + rightMargin);
-		width = img.get_width();
-	}
+	png::uint_32 width = imageWidth;
+	png::uint_32 height = (Pins - leftMargin - rightMargin) / 4;
+	if (!(flags & Flags::Test))
+		height = img.get_height();
 
-	uint8_t vline[Height];
-	bool zeroLine;
+	if (Pins != leftMargin + height * 4 + rightMargin)
+		return Exec{std::format("Height of the image doesn't match the tape: left margin = {} pins, right margin = {} pins, expected = {} pins, received {} pixels ({} pins)", rightMargin, leftMargin, Pins - leftMargin - rightMargin, height, height * 4)};
 
-	static uint8_t GrayScale[16] = {0, 8, 4, 1, 2, 12, 10, 9, 6, 3, 5, 14, 13, 11, 7, 15};
-	auto byteValue = [](uint8_t value1, uint8_t value2) { return (value1 << 4) + value2; };  // values have to be between 0 and 15
-	auto intensity = [](const png::basic_rgb_pixel<unsigned char> &p) { return GrayScale[15 - (p.red + p.green + p.blue) / 3 / 16]; };
+	uint8_t vline[4][Height];
+	bool zeroLine[4];
+
+	auto intensity = [](const png::basic_rgb_pixel<unsigned char> &p) { return 15 - (p.red + p.green + p.blue) / 3 / 16; };
+
+	auto mask = [](uint8_t bitsOn)
+		{
+			static const unsigned Mask[16] = {6, 9, 0, 15, 12, 3, 5, 10, 4, 11, 2, 13, 7, 8, 1, 14};
+			uint16_t p = 0;
+			for (uint8_t i = 0; i < bitsOn; ++i)
+				p |= 1 << Mask[i];
+			return p;
+		};
 
 	for (png::uint_32 x = 0; x < width; ++x) {
-		zeroLine = true;
-		png::uint_32 y = 0;
+		std::memset(vline, 0, sizeof vline);
+		*(reinterpret_cast<uint32_t *>(zeroLine)) = 0;
 
-		for (; y < leftMargin; ++y)
-			vline[y] = 0;
+		for (png::uint_32 y = 0; y < height; ++y) {
+			uint16_t pixel;
+			if (flags & Flags::Test)
+				pixel = mask(x / 8);
+			else
+				pixel = mask(intensity(img.get_pixel(x, y)));
 
-		if (flags & Flags::Test) {
-			for (; y < leftMargin + height; ++y) {
-				assert(x / 5 < 16);
-				vline[y] = byteValue(GrayScale[15 - x / 5], GrayScale[15 - x / 5]);
-				zeroLine = false;
-			}
-		} else {
-			for (; y < leftMargin + height; ++y) {
-				// TODO iterate like a human being
-				auto p1 = img.get_pixel(x, (y - leftMargin) * 2);
-				auto p2 = img.get_pixel(x, (y - leftMargin) * 2 + 1);
-				vline[y] = byteValue(intensity(p1), intensity(p2));
-				zeroLine &= vline[y] == 0;
+			for (unsigned i = 0; i < 4; ++i) {
+				for (unsigned j = 0; j < 4; ++j) {
+					if (pixel & (1 << (4 * i + j))) {
+						unsigned pin = leftMargin + y * 4 + j;
+						unsigned byteNr = pin / 8;
+						unsigned bitInPixel = 8 - pin % 8;
+						vline[i][byteNr] |= 1 << bitInPixel;
+						zeroLine[i] = false;
+					}
+				}
 			}
 		}
 
-		for (; y < Height; ++y)
-			vline[y] = 0;
-
-		for (unsigned rep = 0; rep < HeightScale; ++rep) {
-			if (zeroLine) {
+		for (unsigned i = 0; i < 4; ++i) {
+			if (zeroLine[i]) {
 				out << 'Z';
 			} else if (flags & Flags::Compressed) {
-				writeEncodedLine(out, vline, Height);
+				writeEncodedLine(out, vline[i], Height);
 			} else {
 				out << 'G' << static_cast<uint8_t>(70) << static_cast<uint8_t>(0);
 				for (png::uint_32 y = 0; y < Height; ++y)
-					out << vline[y];
+					out << vline[i][y];
 			}
 		}
 	}
@@ -312,7 +316,7 @@ Exec writePrintRequest(std::ofstream &out, const ArgParser &parser, const png::i
 
 		PrintInformationCommand printInformationCommand;
 		printInformationCommand.mediaWidth = TapeWidth.at(tapeWidth);
-		printInformationCommand.setRasterNumber(HeightScale * imageWidth);
+		printInformationCommand.setRasterNumber(4 * imageWidth);
 		if (copyIndex + 1 == copies)
 			printInformationCommand.pageIndex = PrintInformationCommand::Last;
 		else if (copyIndex == 0)
@@ -322,19 +326,24 @@ Exec writePrintRequest(std::ofstream &out, const ArgParser &parser, const png::i
 		writeStruct(out, printInformationCommand);
 
 		VariousModeSettings variousModeSettings;
-		variousModeSettings.v = VariousModeSettings::AutoCut;
+		if (!parser.has("--no-auto-cut"))
+			variousModeSettings.v |= VariousModeSettings::AutoCut;
+		if (parser.has("--mirror-printing"))
+			variousModeSettings.v |= VariousModeSettings::MirrorPrinting;
 		writeStruct(out, variousModeSettings);
 
 		writeStruct(out, PageNumberInCutEachLabels{});
 
 		AdvancedModeSettings advancedModeSettings;
-		if (parser.has("--half-cut-off"))
+		if (parser.has("--no-half-cut"))
 			advancedModeSettings.halfCut = false;
 		if (parser.has("--chain-printing"))
 			advancedModeSettings.noChainPrinting = false;
 		writeStruct(out, advancedModeSettings);
 
-		writeStruct(out, SpecifyMarginAmount{});
+		SpecifyMarginAmount specifyMarginAmount;
+		specifyMarginAmount.v[0] = std::stoi(parser.value("--set-length-margin"));
+		writeStruct(out, specifyMarginAmount);
 
 		SelectCompressionMode compressionMode;
 		if (flags & Flags::Compressed)
@@ -343,7 +352,7 @@ Exec writePrintRequest(std::ofstream &out, const ArgParser &parser, const png::i
 			compressionMode.v = SelectCompressionMode::NoCompression;
 		writeStruct(out, compressionMode);
 
-		auto exec = writePng(out, image, parser.value("--tape-width"), flags);
+		auto exec = writePng(out, image, parser.value("--tape-width"), imageWidth, flags);
 		if (!exec)
 			return exec;
 
@@ -382,8 +391,11 @@ int main(int argc, char **argv)
 			parser.addArgument(Arg{"--compression"});
 			parser.addArgument(Arg{"--tape-type"});
 			parser.addArgument(Arg{"--tape-width"});
-			parser.addArgument(Arg{"--half-cut-off"}.setOptional().setCount(0));
+			parser.addArgument(Arg{"--set-length-margin"});
+			parser.addArgument(Arg{"--no-auto-cut"}.setOptional().setCount(0));
+			parser.addArgument(Arg{"--no-half-cut"}.setOptional().setCount(0));
 			parser.addArgument(Arg{"--chain-printing"}.setOptional().setCount(0));
+			parser.addArgument(Arg{"--mirror-printing"}.setOptional().setCount(0));
 			break;
 		case Command::Status:
 			parser.addArgument(Arg{"-o"});

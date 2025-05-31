@@ -19,7 +19,9 @@ def parse_args():
 	parser.add_argument("--image", "-i", required=True, help="use 'test' for test page printing")
 	parser.add_argument("--compression", required=False, choices=["no compression", "tiff"], default="tiff")
 	parser.add_argument("--copies", required=False, default=1, type=int)
-	parser.add_argument("--half-cut-off", action="store_true")
+	parser.add_argument("--set-length-margin", required=False, type=int, default=14)
+	parser.add_argument("--no-auto-cut", action="store_true")
+	parser.add_argument("--no-half-cut", action="store_true")
 	parser.add_argument("--chain-printing", action="store_true")
 
 	return parser.parse_args()
@@ -81,9 +83,12 @@ def make_request(args):
 		"--compression", "tiff",
 		"--tape-type", f"'{args.tape_type}'",
 		"--tape-width", f"'{args.tape_width}'",
+		"--set-length-margin", str(args.set_length_margin),
 	]
-	if args.half_cut_off:
-		command.append("--half-cut-off")
+	if args.no_auto_cut:
+		command.append("--no-auto-cut")
+	if args.no_half_cut:
+		command.append("--no-half-cut")
 	if args.chain_printing:
 		command.append("--chain-printing")
 
