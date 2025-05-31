@@ -126,9 +126,9 @@ struct Status {
 	TextColourInformation textColourInformation;
 	uint8_t reserved[6];
 
-	std::string_view brotherCodeStr() const
+	std::string_view modelCodeStr() const
 	{
-		switch (brotherCode) {
+		switch (modelCode) {
 			case 0x71: return "PT-P900";
 			case 0x69: return "PT-P900W";
 			case 0x70: return "PT-P950NW";
@@ -374,11 +374,9 @@ int main(int argc, char **argv)
 
 	check(status.printHeadMark, 0x80, "print head mark");
 	check(status.size, 0x20, "size");
-
-	std::cout << "brother code: " << status.brotherCodeStr() << "\n";
-
+	check(status.brotherCode, 0x42, "brother code");
 	check(status.seriesCode, 0x30, "series code");
-	check(status.modelCode, 0x69, "model code");
+	std::cout << "model code: " << status.modelCodeStr() << "\n";
 	check(status.countryCode, 0x30, "country code");
 
 	std::cout << "battery level: " << status.batteryLevelStr() << "\n";
