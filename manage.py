@@ -23,6 +23,9 @@ def parse_args():
 	parser.add_argument("--no-auto-cut", action="store_true")
 	parser.add_argument("--no-half-cut", action="store_true")
 	parser.add_argument("--chain-printing", action="store_true")
+	parser.add_argument("--img-scale-up", action="store_true", help="scales the image up if it's way too small")
+	parser.add_argument("--img-center", action="store_true", help="centers the image if it's too small")
+	parser.add_argument("--img-scale-down", action="store_true", help="scales the image down if it's too big")
 
 	return parser.parse_args()
 
@@ -91,6 +94,12 @@ def make_request(args):
 		command.append("--no-half-cut")
 	if args.chain_printing:
 		command.append("--chain-printing")
+	if args.img_scale_down:
+		command.append("--scale-down")
+	if args.img_scale_up:
+		command.append("--scale-up")
+	if args.img_center:
+		command.append("--center")
 
 	print(" ".join(command))
 	subprocess.check_output(command)

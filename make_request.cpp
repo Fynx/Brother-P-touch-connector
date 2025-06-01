@@ -186,6 +186,7 @@ void writeEncodedLine(std::ofstream &out, uint8_t* line, png::uint_32 height)
 struct Flags {
 	enum Value : uint8_t {
 		Compressed = 0x01,
+		Center = 0x02,
 		Test = 0x80,
 	};
 };
@@ -248,26 +249,49 @@ namespace {
 	};
 }
 
+struct Margins {
+	unsigned leftMargin;
+	unsigned rightMargin;
+	unsigned height;  // pixels
+
+	static const unsigned Pins = 560;
+
+	Margins(std::string_view mediaWidth)
+	{
+		const auto margin = bp::margins().at(mediaWidth);
+		// left and right margins are swapped as the data is mirrored
+		leftMargin = margin.second;
+		rightMargin = margin.first;
+		rightMargin += 4 - (leftMargin + rightMargin) % 4;  // adjust to full bytes
+		height = (Pins - leftMargin - rightMargin) / 4;
+	}
+};
+
 Exec writePng(std::ofstream &out, const png::image<png::rgb_pixel> &img, std::string_view mediaWidth, unsigned imageWidth, uint8_t flags)
 {
 	static const unsigned Height = 70;
-	static const unsigned Pins = 560;
 
-	if (!Margins.contains(mediaWidth))
-		return Exec(std::format("writePng: unrecognised media width ", mediaWidth));
+	if (!bp::margins().contains(mediaWidth))
+		return Exec{std::format("writePng: unrecognised media width {}", mediaWidth)};
 
-	// left and right margins are swapped as the data is mirrored
-	unsigned leftMargin = bp::margins().at(mediaWidth).second;  // * Height / Pins;
-	unsigned rightMargin = bp::margins().at(mediaWidth).first;  // * Height / Pins;
-	rightMargin += 4 - (leftMargin + rightMargin) % 4;  // adjust to full bytes
+	Margins margins{mediaWidth};
+	unsigned leftMargin = margins.leftMargin;
+	unsigned rightMargin = margins.rightMargin;
 
 	png::uint_32 width = imageWidth;
-	png::uint_32 height = (Pins - leftMargin - rightMargin) / 4;
+	png::uint_32 height = margins.height;
 	if (!(flags & Flags::Test))
 		height = img.get_height();
 
-	if (Pins != leftMargin + height * 4 + rightMargin)
-		return Exec{std::format("Height of the image doesn't match the tape: left margin = {} pins, right margin = {} pins, expected = {} pins, received {} pixels ({} pins)", rightMargin, leftMargin, Pins - leftMargin - rightMargin, height, height * 4)};
+	if (flags & Flags::Center) {
+		leftMargin += (margins.height - height) * 4 / 2;
+		rightMargin += Margins::Pins - height * 4 - leftMargin - rightMargin;
+	}
+
+	// std::cerr << std::format("height {}, height {}, leftMargin {}, rightMargin {}\n", margins.height, height, leftMargin, rightMargin);
+
+	if (Margins::Pins != leftMargin + height * 4 + rightMargin)
+		return Exec{std::format("Height of the image doesn't match the tape: left margin = {} pins, right margin = {} pins, expected = {} pins, received {} pixels ({} pins)", rightMargin, leftMargin, Margins::Pins - leftMargin - rightMargin, height, height * 4)};
 
 	uint8_t vline[4][Height];
 	bool zeroLine[4];
@@ -284,7 +308,7 @@ Exec writePng(std::ofstream &out, const png::image<png::rgb_pixel> &img, std::st
 			if (flags & Flags::Test)
 				pixel = maskFn(x / 8 + 1);
 			else
-				pixel = maskFn(intensity(img.get_pixel(x, y)));
+				pixel = maskFn(intensity(img.get_pixel(y, x)));
 
 			for (unsigned i = 0; i < 4; ++i) {
 				for (unsigned j = 0; j < 4; ++j) {
@@ -376,6 +400,47 @@ Exec writePrintRequest(std::ofstream &out, const ArgParser &parser, const png::i
 	return Exec{};
 }
 
+png::image<png::rgb_pixel> enlargeImage(const png::image<png::rgb_pixel> &image)
+{
+	auto width = image.get_width();
+	auto height = image.get_height();
+	png::image<png::rgb_pixel> img{width * 2, height * 2};
+	for (png::uint_32 x = 0; x < width; ++x) {
+		for (png::uint_32 y = 0; y < height; ++y) {
+			const auto &pixel = image.get_pixel(y, x);
+			img.set_pixel(y * 2, x * 2, pixel);
+			img.set_pixel(y * 2 + 1, x * 2, pixel);
+			img.set_pixel(y * 2, x * 2 + 1, pixel);
+			img.set_pixel(y * 2 + 1, x * 2 + 1, pixel);
+		}
+	}
+
+	return img;
+}
+
+png::image<png::rgb_pixel> shrinkImage(const png::image<png::rgb_pixel> &image)
+{
+	auto width = image.get_width();
+	auto height = image.get_height();
+	png::image<png::rgb_pixel> img{width / 2, height / 2};
+	for (png::uint_32 x = 0; x < width / 2; ++x) {
+		for (png::uint_32 y = 0; y < height / 2; ++y) {
+			auto r = (
+				static_cast<uint32_t>(image.get_pixel(y, x).red) + static_cast<uint32_t>(image.get_pixel(y + 1, x).red)
+				+ static_cast<uint32_t>(image.get_pixel(y, x + 1).red) + static_cast<uint32_t>(image.get_pixel(y + 1, x + 1).red)) / 4;
+			auto g = (
+				static_cast<uint32_t>(image.get_pixel(y, x).green) + static_cast<uint32_t>(image.get_pixel(y + 1, x).green)
+				+ static_cast<uint32_t>(image.get_pixel(y, x + 1).green) + static_cast<uint32_t>(image.get_pixel(y + 1, x + 1).green)) / 4;
+			auto b = (
+				static_cast<uint32_t>(image.get_pixel(y, x).blue) + static_cast<uint32_t>(image.get_pixel(y + 1, x).blue)
+				+ static_cast<uint32_t>(image.get_pixel(y, x + 1).blue) + static_cast<uint32_t>(image.get_pixel(y + 1, x + 1).blue)) / 4;
+			img.set_pixel(y, x, png::rgb_pixel{static_cast<uint8_t>(r), static_cast<uint8_t>(g), static_cast<uint8_t>(b)});
+		}
+	}
+
+	return img;
+}
+
 int main(int argc, char **argv)
 {
 	enum class Command {
@@ -407,6 +472,9 @@ int main(int argc, char **argv)
 			parser.addArgument(Arg{"--no-half-cut"}.setOptional().setCount(0));
 			parser.addArgument(Arg{"--chain-printing"}.setOptional().setCount(0));
 			parser.addArgument(Arg{"--mirror-printing"}.setOptional().setCount(0));
+			parser.addArgument(Arg{"--scale-down"}.setOptional().setCount(0));
+			parser.addArgument(Arg{"--scale-up"}.setOptional().setCount(0));
+			parser.addArgument(Arg{"--center"}.setOptional().setCount(0));
 			break;
 		case Command::Status:
 			parser.addArgument(Arg{"-o"});
@@ -433,7 +501,31 @@ int main(int argc, char **argv)
 		} else {
 			image.read(parser.value("-i"));
 			imageWidth = image.get_width();
+
+			unsigned imageHeight = image.get_height();
+			if (parser.has("--scale-up")) {
+				auto expectedHeight = Margins{parser.value("--tape-width")}.height;
+				while (imageHeight * 2 <= expectedHeight) {
+					std::cerr << std::format("height: {}, expected height: {}, enlarging image\n", imageHeight, expectedHeight);
+					image = enlargeImage(image);
+					imageHeight = image.get_height();
+					imageWidth = image.get_width();
+				}
+			}
+			if (parser.has("--scale-down")) {
+				auto expectedHeight = Margins{parser.value("--tape-width")}.height;
+				while (imageHeight > expectedHeight) {
+					std::cerr << std::format("height: {}, expected height: {}, shrinking image\n", imageHeight, expectedHeight);
+					image = shrinkImage(image);
+					imageHeight = image.get_height();
+					imageWidth = image.get_width();
+				}
+			}
+			std::string previewPath{"/tmp/preview.png"};
+			std::cerr << "preview: " << previewPath << "\n";
+			image.write(previewPath);
 		}
+
 
 		if (parser.value("--compression") == "tiff") {
 			flags |= Flags::Compressed;
@@ -441,6 +533,9 @@ int main(int argc, char **argv)
 			std::cerr << "Invalid compression mode: " << parser.value("--compression") << "\n";
 			return 1;
 		}
+
+		if (parser.has("--center"))
+			flags |= Flags::Center;
 
 		std::ofstream out(parser.value("-o"), std::ofstream::binary | std::ios_base::app);
 
