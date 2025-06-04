@@ -283,15 +283,16 @@ Exec writePng(std::ofstream &out, const png::image<png::rgb_pixel> &img, std::st
 	if (!(flags & Flags::Test))
 		height = img.get_height();
 
+	if (Margins::Pins < leftMargin + height * 4 + rightMargin)
+		return Exec{std::format("Height of the image too large: left margin = {} pins, right margin = {} pins, expected = {} pixels ({} pins), received {} pixels ({} pins)", rightMargin, leftMargin, (Margins::Pins - leftMargin - rightMargin) / 4, Margins::Pins - leftMargin - rightMargin, height, height * 4)};
+
 	if (flags & Flags::Center) {
 		leftMargin += (margins.height - height) * 4 / 2;
 		rightMargin += Margins::Pins - height * 4 - leftMargin - rightMargin;
 	}
 
-	// std::cerr << std::format("height {}, height {}, leftMargin {}, rightMargin {}\n", margins.height, height, leftMargin, rightMargin);
-
 	if (Margins::Pins != leftMargin + height * 4 + rightMargin)
-		return Exec{std::format("Height of the image doesn't match the tape: left margin = {} pins, right margin = {} pins, expected = {} pins, received {} pixels ({} pins)", rightMargin, leftMargin, Margins::Pins - leftMargin - rightMargin, height, height * 4)};
+		return Exec{std::format("Height of the image doesn't match the tape: left margin = {} pins, right margin = {} pins, expected at most = {} pixels ({} pins), received {} pixels ({} pins)", rightMargin, leftMargin, (Margins::Pins - leftMargin - rightMargin) / 4, Margins::Pins - leftMargin - rightMargin, height, height * 4)};
 
 	uint8_t vline[4][Height];
 	bool zeroLine[4];
