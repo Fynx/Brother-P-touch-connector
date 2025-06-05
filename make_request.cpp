@@ -5,10 +5,9 @@
 #include <iostream>
 #include <random>
 
-#include "png++/png.hpp"
-
 #include "ArgParser.hpp"
 #include "constants.hpp"
+#include "scaling.hpp"
 
 
 const char ESCAPE = static_cast<char>(27);
@@ -419,29 +418,6 @@ png::image<png::rgb_pixel> enlargeImage(const png::image<png::rgb_pixel> &image)
 	return img;
 }
 
-png::image<png::rgb_pixel> shrinkImage(const png::image<png::rgb_pixel> &image)
-{
-	auto width = image.get_width();
-	auto height = image.get_height();
-	png::image<png::rgb_pixel> img{width / 2, height / 2};
-	for (png::uint_32 x = 0; x < width / 2; ++x) {
-		for (png::uint_32 y = 0; y < height / 2; ++y) {
-			auto r = (
-				static_cast<uint32_t>(image.get_pixel(y, x).red) + static_cast<uint32_t>(image.get_pixel(y + 1, x).red)
-				+ static_cast<uint32_t>(image.get_pixel(y, x + 1).red) + static_cast<uint32_t>(image.get_pixel(y + 1, x + 1).red)) / 4;
-			auto g = (
-				static_cast<uint32_t>(image.get_pixel(y, x).green) + static_cast<uint32_t>(image.get_pixel(y + 1, x).green)
-				+ static_cast<uint32_t>(image.get_pixel(y, x + 1).green) + static_cast<uint32_t>(image.get_pixel(y + 1, x + 1).green)) / 4;
-			auto b = (
-				static_cast<uint32_t>(image.get_pixel(y, x).blue) + static_cast<uint32_t>(image.get_pixel(y + 1, x).blue)
-				+ static_cast<uint32_t>(image.get_pixel(y, x + 1).blue) + static_cast<uint32_t>(image.get_pixel(y + 1, x + 1).blue)) / 4;
-			img.set_pixel(y, x, png::rgb_pixel{static_cast<uint8_t>(r), static_cast<uint8_t>(g), static_cast<uint8_t>(b)});
-		}
-	}
-
-	return img;
-}
-
 int main(int argc, char **argv)
 {
 	enum class Command {
@@ -515,9 +491,10 @@ int main(int argc, char **argv)
 			}
 			if (parser.has("--scale-down")) {
 				auto expectedHeight = Margins{parser.value("--tape-width")}.height;
-				while (imageHeight > expectedHeight) {
-					std::cerr << std::format("height: {}, expected height: {}, shrinking image\n", imageHeight, expectedHeight);
-					image = shrinkImage(image);
+				auto expectedWidth = static_cast<unsigned>(static_cast<double>(expectedHeight) / static_cast<double>(imageHeight) * static_cast<double>(imageWidth));
+				static const unsigned FilterSize = 3;
+				if (imageHeight > expectedHeight) {
+					image = scaleLanczos(image, expectedHeight, expectedWidth, FilterSize);
 					imageHeight = image.get_height();
 					imageWidth = image.get_width();
 				}
