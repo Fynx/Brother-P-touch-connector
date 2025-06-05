@@ -45,6 +45,12 @@ Get printer status.
 ./manage.py status -d /dev/usb/lp1
 ```
 
+Print a test page.
+
+```
+./manage.py print -d /dev/usb/lp1 -o /dev/usb/lp1 -i test --tape-colour white --tape-width '12 mm' --tape-type 'non-laminated tape' --text-colour black
+```
+
 Print a single local images/cat0.png image after verifying input parameters.
 
 ```
