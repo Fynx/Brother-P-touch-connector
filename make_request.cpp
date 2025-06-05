@@ -308,7 +308,7 @@ Exec writePng(std::ofstream &out, const png::image<png::rgb_pixel> &img, std::st
 			if (flags & Flags::Test)
 				pixel = maskFn(x / 8 + 1);
 			else
-				pixel = maskFn(intensity(img.get_pixel(y, x)));
+				pixel = maskFn(intensity(img.get_pixel(x, y)));
 
 			for (unsigned i = 0; i < 4; ++i) {
 				for (unsigned j = 0; j < 4; ++j) {
