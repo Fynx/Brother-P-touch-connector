@@ -18,7 +18,7 @@ inline double lanczos(double x, int a)
 	return 0;
 }
 
-png::rgb_pixel lanczosAt(png::image<png::rgb_pixel> input, int sourceX, int sourceY, int a)
+png::rgb_pixel lanczosAt(const png::image<png::rgb_pixel> &input, int sourceX, int sourceY, int a)
 {
 	// avoiding using unsigned to dodge the overflow and type comparison traps
 
@@ -39,7 +39,7 @@ png::rgb_pixel lanczosAt(png::image<png::rgb_pixel> input, int sourceX, int sour
 	return resultPixel;
 }
 
-png::image<png::rgb_pixel> scaleLanczos(png::image<png::rgb_pixel> input, unsigned height, unsigned width, unsigned a)
+png::image<png::rgb_pixel> scaleLanczos(const png::image<png::rgb_pixel> &input, unsigned height, unsigned width, unsigned a)
 {
 	png::image<png::rgb_pixel> output{width, height};
 	double scaleX = static_cast<double>(width) / static_cast<double>(input.get_width());
