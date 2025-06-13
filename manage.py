@@ -105,7 +105,7 @@ def make_request(args):
 
 def parse_args():
 	parser = argparse.ArgumentParser()
-	subparsers = parser.add_subparsers(dest="group", required=True)
+	subparsers = parser.add_subparsers(dest="cmd", required=True)
 
 	parser_status = subparsers.add_parser("status")
 	parser_status.add_argument("--verbose", "-v", action="store_true")
@@ -146,13 +146,13 @@ def main():
 
 	status = get_status(args)
 
-	if args.group == "status" or args.verbose:
+	if args.cmd == "status" or args.verbose:
 		print("")
 		for k, v in status.items():
 			print(f"{k}: {v}")
 		print("")
 
-	if args.group == "print":
+	if args.cmd == "print":
 		verify_args(args, status)
 		make_request(args)
 

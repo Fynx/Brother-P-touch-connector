@@ -427,14 +427,21 @@ int main(int argc, char **argv)
 		Initialise,
 	} command;
 
-	if (strcmp(argv[1], "print") == 0)
+	if (argc < 2) {
+		std::cerr << std::format("usage: {} print/status/initialise <options>\n", argv[0]);
+		return 1;
+	}
+
+	if (strcmp(argv[1], "print") == 0) {
 		command = Command::Print;
-	else if (strcmp(argv[1], "status") == 0)
+	} else if (strcmp(argv[1], "status") == 0) {
 		command = Command::Status;
-	else if (strcmp(argv[1], "initialise") == 0)
+	} else if (strcmp(argv[1], "initialise") == 0) {
 		command = Command::Initialise;
-	else
-		assert(false);
+	} else {
+		std::cerr << std::format("Unrecognised option: {}, expected: print/status/initialise\n", argv[1]);
+		return 1;
+	}
 
 	ArgParser parser;
 	switch (command) {
