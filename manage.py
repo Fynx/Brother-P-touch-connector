@@ -6,30 +6,42 @@ import subprocess
 from time import sleep
 
 
-def request_status(args, attempts=5, wait=1):
-	for i in range(0, attempts):
-		request_status_cmd = ["./make_request", "status", "-o", args.device_path]
+def request_status(args):
+	request_status_cmd = ["./make_request", "status", "-o", args.device_path]
+	if args.verbose:
+		print(" ".join(request_status_cmd))
+	subprocess.check_output(request_status_cmd)
+
+
+def read_status(args):
+	read_status_cmd = ["./read_status", args.device_path]
+	error = None
+	output = None
+	try:
 		if args.verbose:
-			print(" ".join(request_status_cmd))
-		subprocess.check_output(request_status_cmd)
+			print(" ".join(read_status_cmd))
+		output = subprocess.check_output(read_status_cmd, stderr=subprocess.STDOUT).decode("utf-8").strip().split("\n")
+	except subprocess.CalledProcessError as e:
+		error = e.output.decode().strip()
+		return None, error
 
+	return {
+		e[0].strip(): ":".join(e[1:]).strip()
+		for line in output if (e := line.split(":"))
+	}, None
+
+
+def get_status(args, attempts=5, wait=1):
+	for i in range(0, attempts):
+		request_status(args)
 		sleep(wait)
-
-		read_status_cmd = ["./read_status", args.device_path]
-		error = None
-		try:
-			if args.verbose:
-				print(" ".join(read_status_cmd))
-			output = subprocess.check_output(read_status_cmd, stderr=subprocess.STDOUT).decode("utf-8").strip().split("\n")
-			break
-		except subprocess.CalledProcessError as e:
-			error = e.output.decode().strip()
-			if args.verbose:
-				print("failed")
+		output, error = read_status(args)
+		if error and args.verbose:
+			print("failed")
+		if not error:
+			return output
 	else:
 		raise Exception(f"Failed to read printer status: '{error}'")
-
-	return {e[0].strip(): ":".join(e[1:]).strip() for line in output if (e := line.split(":"))}
 
 
 def verify_args(args, status):
@@ -125,7 +137,14 @@ def parse_args():
 def main():
 	args = parse_args()
 
-	status = request_status(args)
+	# get rid of data in the device
+	error = None
+	while not error:
+		_, error = read_status(args)
+	if not error.startswith("Empty file"):
+		raise Exception(f"Expected '{args.device_path}' to be empty, but got '{error}' when attempting to read")
+
+	status = get_status(args)
 
 	if args.group == "status" or args.verbose:
 		print("")
