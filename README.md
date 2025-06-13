@@ -21,7 +21,8 @@ Can read and interpret a print request. Diagnostics only.
 
 ## Requirements
 
-* gcc 13
+* gcc-14
+* python-3.8+
 * Brother P-touch P900/P900W/P950NW printer
 * printer linux device (such as /dev/usb/lp1)
 
