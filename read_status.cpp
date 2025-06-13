@@ -27,90 +27,102 @@ struct Status {
 		bool systemError : 1;
 	};
 
-	enum class ExtendedError : uint8_t {
-		FleTapeEnd = 0x10,
-		HighResolutionOrDraftPrintingError = 0x1d,
-		AdapterPullOrInsertError = 0x1e,
-		IncompatibleMediaError = 0x21,
+	struct ExtendedError {
+		enum Value : uint8_t {
+			FleTapeEnd = 0x10,
+			HighResolutionOrDraftPrintingError = 0x1d,
+			AdapterPullOrInsertError = 0x1e,
+			IncompatibleMediaError = 0x21,
+		};
 	};
 
-	enum class StatusType : uint8_t {
-		ReplyToStatusRequest = 0x00,
-		PrintingCompleted = 0x01,
-		ErrorOccurred = 0x02,
-		ExitIFMode = 0x03,
-		TurnedOff = 0x04,
-		Notification = 0x05,
-		PhaseChange = 0x06,
+	struct StatusType {
+		enum Value : uint8_t {
+			ReplyToStatusRequest = 0x00,
+			PrintingCompleted = 0x01,
+			ErrorOccurred = 0x02,
+			ExitIFMode = 0x03,
+			TurnedOff = 0x04,
+			Notification = 0x05,
+			PhaseChange = 0x06,
+		};
 	};
 
-	enum class NotificationNumber : uint8_t {
-		NotAvailable = 0x00,
-		CoverOpen = 0x01,
-		CoverClosed = 0x02,
-		CoolingStarted = 0x03,
-		CoolingFinished = 0x04,
+	struct NotificationNumber {
+		enum Value : uint8_t {
+			NotAvailable = 0x00,
+			CoverOpen = 0x01,
+			CoverClosed = 0x02,
+			CoolingStarted = 0x03,
+			CoolingFinished = 0x04,
+		};
 	};
 
-	enum class TapeColourInformation : uint8_t {
-		White = 0x01,
-		Other = 0x02,
-		Clear = 0x03,
-		Red = 0x04,
-		Blue = 0x05,
-		Yellow = 0x06,
-		Green = 0x07,
-		Black = 0x08,
-		ClearWhiteText = 0x09,
-		MatteWhite = 0x20,
-		MatteClear = 0x21,
-		MatteSilver = 0x22,
-		SatinGold = 0x23,
-		SatinSilver = 0x24,
-		BlueD = 0x30,
-		RedD = 0x31,
-		FluorescentOrange = 0x40,
-		FluorescentYellow = 0x41,
-		BerryPinkS = 0x50,
-		LightGrayS = 0x51,
-		YellowF = 0x60,
-		PinkF = 0x61,
-		BlueF = 0x62,
-		WhiteHSTube = 0x70,
-		WhiteFlexID = 0x90,
-		YellowFlexID = 0x91,
-		Cleaning = 0xf0,
-		Stencil = 0xf1,
-		Incompatible = 0xff,
+	struct TapeColourInformation {
+		enum Value : uint8_t {
+			White = 0x01,
+			Other = 0x02,
+			Clear = 0x03,
+			Red = 0x04,
+			Blue = 0x05,
+			Yellow = 0x06,
+			Green = 0x07,
+			Black = 0x08,
+			ClearWhiteText = 0x09,
+			MatteWhite = 0x20,
+			MatteClear = 0x21,
+			MatteSilver = 0x22,
+			SatinGold = 0x23,
+			SatinSilver = 0x24,
+			BlueD = 0x30,
+			RedD = 0x31,
+			FluorescentOrange = 0x40,
+			FluorescentYellow = 0x41,
+			BerryPinkS = 0x50,
+			LightGrayS = 0x51,
+			YellowF = 0x60,
+			PinkF = 0x61,
+			BlueF = 0x62,
+			WhiteHSTube = 0x70,
+			WhiteFlexID = 0x90,
+			YellowFlexID = 0x91,
+			Cleaning = 0xf0,
+			Stencil = 0xf1,
+			Incompatible = 0xff,
+		};
 	};
 
-	enum class TextColourInformation : uint8_t {
-		White = 0x01,
-		Other = 0x02,
-		Red = 0x04,
-		Blue = 0x05,
-		Black = 0x08,
-		Gold = 0x0a,
-		BlueF = 0x62,
-		Cleaning = 0xf0,
-		Stencil = 0xf1,
-		Incompatible = 0xff,
+	struct TextColourInformation {
+		enum Value : uint8_t {
+			White = 0x01,
+			Other = 0x02,
+			Red = 0x04,
+			Blue = 0x05,
+			Black = 0x08,
+			Gold = 0x0a,
+			BlueF = 0x62,
+			Cleaning = 0xf0,
+			Stencil = 0xf1,
+			Incompatible = 0xff,
+		};
 	};
 
-	enum class BatteryLevel : uint8_t {
-		Full = 0x00,
-		Half = 0x01,
-		Low = 0x02,
-		NeedToBeCharged = 0x03,
-		UsingAcAdapter = 0x04,
-		Unknown = 0xff,
+	struct BatteryLevel {
+		enum Value : uint8_t {
+			Full = 0x00,
+			Half = 0x01,
+			Low = 0x02,
+			NeedToBeCharged = 0x03,
+			UsingAcAdapter = 0x04,
+			Unknown = 0xff,
+		};
 	};
 
 	uint8_t printHeadMark;
 	uint8_t size;
 	uint8_t brotherCode, seriesCode, modelCode, countryCode;
-	BatteryLevel batteryLevel;
-	ExtendedError extendedError;
+	BatteryLevel::Value batteryLevel;
+	ExtendedError::Value extendedError;
 	Error error;
 	uint8_t mediaWidth, mediaType;
 	uint8_t numberOfColours;
@@ -118,12 +130,12 @@ struct Status {
 	uint8_t mode;
 	uint8_t density;
 	uint8_t mediaLength;
-	StatusType statusType;
+	StatusType::Value statusType;
 	uint8_t phaseType, phaseNumber0, phaseNumber1;
-	NotificationNumber notificationNumber;
+	NotificationNumber::Value notificationNumber;
 	uint8_t expansionArea;
-	TapeColourInformation tapeColourInformation;
-	TextColourInformation textColourInformation;
+	TapeColourInformation::Value tapeColourInformation;
+	TextColourInformation::Value textColourInformation;
 	uint8_t reserved[6];
 
 	std::string_view modelCodeStr() const
