@@ -115,7 +115,7 @@ void parse(char *buf, unsigned len, uint8_t parseFlags, uint8_t printFlags)
 			continue;
 		} else if (buf[i] == 0x1a) {
 			std::cerr << "last page marker\n";
-			return;
+			continue;
 		} else if (buf[i] == 0x0c) {
 			std::cerr << "continue data marker\n";
 			continue;

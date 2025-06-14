@@ -45,8 +45,9 @@ def get_status(args, attempts=5, wait=1):
 
 
 def verify_args(args, status):
-	if args.image != "test" and not os.path.exists(args.image):
-		raise Exception(f"Path {args.image} does not exist")
+	for img in args.image:
+		if img != "test" and not os.path.exists(img):
+			raise Exception(f"Path {img} does not exist")
 	if status["error information"]:
 		raise Exception(f"Error: {status['error information']}")
 	if status["phase"] != "editing state":
@@ -72,9 +73,12 @@ def make_request(args):
 	subprocess.check_output(["./make_request", "initialise", "-o", args.output_path])
 	subprocess.check_output(["./make_request", "status", "-o", args.output_path])
 
-	command = [
-		"./make_request", "print",
-		"-i", f"'{args.image}'",
+	command = ["./make_request", "print"]
+
+	for img in args.image:
+		command += ["-i", f"'{img}'"]
+
+	command += [
 		"-o", f"'{args.output_path}'",
 		"--copies", str(args.copies),
 		"--compression", "tiff",
@@ -120,7 +124,7 @@ def parse_args():
 	parser_print.add_argument("--tape-width", required=True)
 	parser_print.add_argument("--tape-type", required=True)
 	parser_print.add_argument("--text-colour", required=True)
-	parser_print.add_argument("--image", "-i", required=True, help="use 'test' for test page printing")
+	parser_print.add_argument("--image", "-i", required=True, action="append", help="use 'test' for test page printing; can be used many times to print many images")
 	parser_print.add_argument("--compression", required=False, choices=["no compression", "tiff"], default="tiff")
 	parser_print.add_argument("--copies", required=False, default=1, type=int)
 	parser_print.add_argument("--set-length-margin", required=False, type=int, default=14)

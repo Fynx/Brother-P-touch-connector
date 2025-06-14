@@ -58,6 +58,12 @@ Print a single local images/cat0.png image after verifying input parameters.
 ./manage.py print -d /dev/usb/lp1 -o /dev/usb/lp1 -i images/cat0.png --tape-colour white --tape-width '12 mm' --tape-type 'non-laminated tape' --text-colour black
 ```
 
+Print cat0.png image and then print test image.
+
+```
+./manage.py print -d /dev/usb/lp1 -o /dev/usb/lp1 -i images/cat0.png -i test --tape-colour white --tape-width '12 mm' --tape-type 'non-laminated tape' --text-colour black
+```
+
 Save an image printing request to default /tmp/request.prn by overwriting. Then, send it to the printer.
 
 ```

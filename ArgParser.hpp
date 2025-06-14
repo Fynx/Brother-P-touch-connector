@@ -30,6 +30,17 @@ public:
 		return *this;
 	}
 
+	bool isRepeatable() const
+	{
+		return m_repeatable;
+	}
+
+	Arg & setRepeatable()
+	{
+		m_repeatable = true;
+		return *this;
+	}
+
 	bool isPresent() const
 	{
 		return m_present;
@@ -75,10 +86,21 @@ public:
 private:
 	std::string_view m_name;
 	bool m_required = true;
+	bool m_repeatable = false;
 	bool m_present = false;
 	unsigned m_cnt = 1;
 	std::vector<std::string> m_values;
 };
+
+
+namespace {
+	std::string stripQuotes(std::string &&str)
+	{
+		if (str[0] == str[str.size() - 1] && (str[0] == '\'' || str[0] == '"'))
+			return str.substr(1, str.size() - 2);
+		return str;
+	}
+}
 
 
 class ArgParser {
@@ -86,9 +108,7 @@ public:
 	void parse(int argc, char **argv)
 	{
 		for (int i = 0; i < argc; ++i) {
-			std::string str{argv[i]};
-			if (str[0] == str[str.size() - 1] && (str[0] == '\'' || str[0] == '"'))
-				str = str.substr(1, str.size() - 2);
+			std::string str = stripQuotes({argv[i]});
 
 			if (i < static_cast<int>(m_posArgs.size())) {
 				auto it = m_args.find(m_posArgs[i]);
@@ -103,22 +123,24 @@ public:
 			}
 
 			auto it = m_args.find(str);
-			auto &arg = it->second;
-
 			if (it == m_args.end()) {
 				m_error = std::format("Unrecognised argument: '{}'", str);
 				return;
 			}
+			auto &arg = it->second;
+
 			if (static_cast<int>(i + arg.count()) >= argc) {
 				m_error = std::format("Expected {} arguments after: '{}'", arg.count(), str);
 				return;
 			}
 
-			arg.valuesRef().resize(arg.count());
-			for (auto &v : arg.valuesRef()) {
-				v = argv[++i];
-				if (v[0] == v[v.size() - 1] && (v[0] == '\'' || v[0] == '"'))
-					v = v.substr(1, v.size() - 2);
+			if (arg.isRepeatable()) {
+				assert(arg.count() == 1);
+				arg.valuesRef().push_back(stripQuotes(std::string{argv[++i]}));
+			} else {
+				arg.valuesRef().resize(arg.count());
+				for (auto &v : arg.valuesRef())
+					v = stripQuotes({argv[++i]});
 			}
 
 			arg.setPresent();

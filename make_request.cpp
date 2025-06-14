@@ -187,6 +187,7 @@ struct Flags {
 	enum Value : uint8_t {
 		Compressed = 0x01,
 		Center = 0x02,
+		LastImage = 0x40,
 		Test = 0x80,
 	};
 };
@@ -392,7 +393,7 @@ Exec writePrintRequest(std::ofstream &out, const ArgParser &parser, const png::i
 		if (!exec)
 			return exec;
 
-		if (copyIndex + 1 < copies)
+		if (copyIndex + 1 < copies || !(flags & Flags::LastImage))
 			out << static_cast<uint8_t>(0x0c);  // page end marker
 		else
 			out << static_cast<uint8_t>(0x1a);  // final page marker
@@ -446,7 +447,7 @@ int main(int argc, char **argv)
 	ArgParser parser;
 	switch (command) {
 		case Command::Print:
-			parser.addArgument(Arg{"-i"});
+			parser.addArgument(Arg{"-i"}.setRepeatable());
 			parser.addArgument(Arg{"-o"});
 			parser.addArgument(Arg{"--copies"});
 			parser.addArgument(Arg{"--compression"});
@@ -476,61 +477,66 @@ int main(int argc, char **argv)
 	}
 
 	if (command == Command::Print) {
-		uint8_t flags = 0;
-
-		png::image<png::rgb_pixel> image;
-		unsigned imageWidth;
-		if (parser.value("-i") == "test") {
-			flags |= Flags::Test;
-			imageWidth = TestImageWidth;
-		} else {
-			image.read(parser.value("-i"));
-			imageWidth = image.get_width();
-
-			unsigned imageHeight = image.get_height();
-			if (parser.has("--scale-up")) {
-				auto expectedHeight = Margins{parser.value("--tape-width")}.height;
-				while (imageHeight * 2 <= expectedHeight) {
-					std::cerr << std::format("height: {}, expected height: {}, enlarging image\n", imageHeight, expectedHeight);
-					image = enlargeImage(image);
-					imageHeight = image.get_height();
-					imageWidth = image.get_width();
-				}
-			}
-			if (parser.has("--scale-down")) {
-				auto expectedHeight = Margins{parser.value("--tape-width")}.height;
-				auto expectedWidth = static_cast<unsigned>(static_cast<double>(expectedHeight) / static_cast<double>(imageHeight) * static_cast<double>(imageWidth));
-				static const unsigned FilterSize = 3;
-				if (imageHeight > expectedHeight) {
-					image = scaleLanczos(image, expectedHeight, expectedWidth, FilterSize);
-					imageHeight = image.get_height();
-					imageWidth = image.get_width();
-				}
-			}
-			std::string previewPath{"/tmp/preview.png"};
-			std::cerr << "preview: " << previewPath << "\n";
-			image.write(previewPath);
-		}
-
-
-		if (parser.value("--compression") == "tiff") {
-			flags |= Flags::Compressed;
-		} else if (parser.value("--compression") != "no compression") {
-			std::cerr << "Invalid compression mode: " << parser.value("--compression") << "\n";
-			return 1;
-		}
-
-		if (parser.has("--center"))
-			flags |= Flags::Center;
-
 		std::ofstream out(parser.value("-o"), std::ofstream::binary | std::ios_base::app);
 
-		auto exec = writePrintRequest(out, parser, image, imageWidth, flags);
-		if (!exec) {
-			std::cerr << exec.error << "\n";
-			return 1;
-		}
+		for (unsigned pathIndex = 0; pathIndex < parser.values("-i").size(); ++pathIndex) {
+			const auto &path = parser.values("-i")[pathIndex];
 
+			uint8_t flags = 0;
+			if (pathIndex == parser.values("-i").size() - 1)
+				flags |= Flags::LastImage;
+
+			png::image<png::rgb_pixel> image;
+			unsigned imageWidth;
+			if (path == "test") {
+				flags |= Flags::Test;
+				imageWidth = TestImageWidth;
+			} else {
+				image.read(path);
+				imageWidth = image.get_width();
+
+				unsigned imageHeight = image.get_height();
+				if (parser.has("--scale-up")) {
+					auto expectedHeight = Margins{parser.value("--tape-width")}.height;
+					while (imageHeight * 2 <= expectedHeight) {
+						std::cerr << std::format("height: {}, expected height: {}, enlarging image\n", imageHeight, expectedHeight);
+						image = enlargeImage(image);
+						imageHeight = image.get_height();
+						imageWidth = image.get_width();
+					}
+				}
+				if (parser.has("--scale-down")) {
+					auto expectedHeight = Margins{parser.value("--tape-width")}.height;
+					auto expectedWidth = static_cast<unsigned>(static_cast<double>(expectedHeight) / static_cast<double>(imageHeight) * static_cast<double>(imageWidth));
+					static const unsigned FilterSize = 3;
+					if (imageHeight > expectedHeight) {
+						image = scaleLanczos(image, expectedHeight, expectedWidth, FilterSize);
+						imageHeight = image.get_height();
+						imageWidth = image.get_width();
+					}
+				}
+				std::string previewPath{"/tmp/preview.png"};
+				std::cerr << "preview: " << previewPath << "\n";
+				image.write(previewPath);
+			}
+
+			if (parser.value("--compression") == "tiff") {
+				flags |= Flags::Compressed;
+			} else if (parser.value("--compression") != "no compression") {
+				std::cerr << "Invalid compression mode: " << parser.value("--compression") << "\n";
+				return 1;
+			}
+
+			if (parser.has("--center"))
+				flags |= Flags::Center;
+
+			auto exec = writePrintRequest(out, parser, image, imageWidth, flags);
+			if (!exec) {
+				std::cerr << exec.error << "\n";
+				return 1;
+			}
+			out.flush();
+		}
 	} else if (command == Command::Status) {
 		std::ofstream out(parser.value("-o"), std::ofstream::binary | std::ios_base::app);
 		writeStruct(out, StatusRequest{});
