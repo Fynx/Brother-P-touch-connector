@@ -92,6 +92,19 @@ def make_request(args):
 		command.append("--no-half-cut")
 	if args.chain_printing:
 		command.append("--chain-printing")
+	if args.last_no_auto_cut:
+		command.append("--last-no-auto-cut")
+	if args.last_no_half_cut:
+		command.append("--last-no-half-cut")
+	if args.last_no_chain_printing:
+		command.append("--last-no-chain-printing")
+	if args.last_auto_cut:
+		command.append("--last-auto-cut")
+	if args.last_half_cut:
+		command.append("--last-half-cut")
+	if args.last_chain_printing:
+		command.append("--last-chain-printing")
+
 	if args.img_scale_down:
 		command.append("--scale-down")
 	if args.img_scale_up:
@@ -115,6 +128,7 @@ def parse_args():
 	parser_status.add_argument("--verbose", "-v", action="store_true")
 	parser_status.add_argument("--device-path", "-d", required=True, default="/dev/usb/lp1", help="file to communicate status request and response with")
 
+
 	parser_print = subparsers.add_parser("print")
 	parser_print.add_argument("--verbose", "-v", action="store_true")
 	parser_print.add_argument("--device-path", "-d", required=True, help="file to communicate status request and response with")
@@ -128,9 +142,18 @@ def parse_args():
 	parser_print.add_argument("--compression", required=False, choices=["no compression", "tiff"], default="tiff")
 	parser_print.add_argument("--copies", required=False, default=1, type=int)
 	parser_print.add_argument("--set-length-margin", required=False, type=int, default=14)
+
 	parser_print.add_argument("--no-auto-cut", action="store_true")
 	parser_print.add_argument("--no-half-cut", action="store_true")
 	parser_print.add_argument("--chain-printing", action="store_true")
+	parser_print.add_argument("--last-no-auto-cut", action="store_true")
+	parser_print.add_argument("--last-no-half-cut", action="store_true")
+	parser_print.add_argument("--last-no-chain-printing", action="store_true")
+	parser_print.add_argument("--last-auto-cut", action="store_true")
+	parser_print.add_argument("--last-half-cut", action="store_true")
+	parser_print.add_argument("--last-chain-printing", action="store_true")
+
+
 	parser_print.add_argument("--img-scale-up", action="store_true", help="scales the image up if it's way too small")
 	parser_print.add_argument("--img-center", action="store_true", help="centers the image if it's too small")
 	parser_print.add_argument("--img-scale-down", action="store_true", help="scales the image down if it's too big")

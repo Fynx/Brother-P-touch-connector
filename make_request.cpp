@@ -187,6 +187,7 @@ struct Flags {
 	enum Value : uint8_t {
 		Compressed = 0x01,
 		Center = 0x02,
+		FirstImage = 0x20,
 		LastImage = 0x40,
 		Test = 0x80,
 	};
@@ -349,14 +350,17 @@ Exec writePrintRequest(std::ofstream &out, const ArgParser &parser, const png::i
 
 	unsigned copies = std::stoi(parser.value("--copies"));
 	for (unsigned copyIndex = 0; copyIndex < copies; ++copyIndex) {
+		bool isLastPage = (flags & Flags::LastImage) && copyIndex == copies - 1;
+		bool isFirstPage = (flags & Flags::FirstImage) && copyIndex == 0;
+
 		writeStruct(out, SwitchDynamicCommandMode{});
 
 		PrintInformationCommand printInformationCommand;
 		printInformationCommand.mediaWidth = bp::tapeWidth().at(tapeWidth);
 		printInformationCommand.setRasterNumber(4 * imageWidth);
-		if (copyIndex + 1 == copies)
+		if (copyIndex + 1 == copies && isLastPage)
 			printInformationCommand.pageIndex = PrintInformationCommand::Last;
-		else if (copyIndex == 0)
+		else if (copyIndex == 0 && isFirstPage)
 			printInformationCommand.pageIndex = PrintInformationCommand::Starting;
 		else
 			printInformationCommand.pageIndex = PrintInformationCommand::Other;
@@ -365,6 +369,13 @@ Exec writePrintRequest(std::ofstream &out, const ArgParser &parser, const png::i
 		VariousModeSettings variousModeSettings;
 		if (!parser.has("--no-auto-cut"))
 			variousModeSettings.v |= VariousModeSettings::AutoCut;
+		if (isLastPage) {
+			if (parser.has("--last-auto-cut"))
+				variousModeSettings.v |= VariousModeSettings::AutoCut;
+			if (parser.has("--last-no-auto-cut"))
+				variousModeSettings.v &= ~VariousModeSettings::AutoCut;
+		}
+
 		if (parser.has("--mirror-printing"))
 			variousModeSettings.v |= VariousModeSettings::MirrorPrinting;
 		writeStruct(out, variousModeSettings);
@@ -374,8 +385,20 @@ Exec writePrintRequest(std::ofstream &out, const ArgParser &parser, const png::i
 		AdvancedModeSettings advancedModeSettings;
 		if (parser.has("--no-half-cut"))
 			advancedModeSettings.halfCut = false;
+		if (isLastPage) {
+			if (parser.has("--last-no-half-cut"))
+				advancedModeSettings.halfCut = false;
+			if (parser.has("--last-half-cut"))
+				advancedModeSettings.halfCut = true;
+		}
 		if (parser.has("--chain-printing"))
 			advancedModeSettings.noChainPrinting = false;
+		if (isLastPage) {
+			if (parser.has("--last-chain-printing"))
+				advancedModeSettings.noChainPrinting = false;
+			if (parser.has("--last-no-chain-printing"))
+				advancedModeSettings.noChainPrinting = true;
+		}
 		writeStruct(out, advancedModeSettings);
 
 		SpecifyMarginAmount specifyMarginAmount;
@@ -449,18 +472,29 @@ int main(int argc, char **argv)
 		case Command::Print:
 			parser.addArgument(Arg{"-i"}.setRepeatable());
 			parser.addArgument(Arg{"-o"});
+
 			parser.addArgument(Arg{"--copies"});
 			parser.addArgument(Arg{"--compression"});
+
 			parser.addArgument(Arg{"--tape-type"});
 			parser.addArgument(Arg{"--tape-width"});
 			parser.addArgument(Arg{"--set-length-margin"});
+
 			parser.addArgument(Arg{"--no-auto-cut"}.setOptional().setCount(0));
 			parser.addArgument(Arg{"--no-half-cut"}.setOptional().setCount(0));
 			parser.addArgument(Arg{"--chain-printing"}.setOptional().setCount(0));
+			parser.addArgument(Arg{"--last-auto-cut"}.setOptional().setCount(0));
+			parser.addArgument(Arg{"--last-no-auto-cut"}.setOptional().setCount(0));
+			parser.addArgument(Arg{"--last-half-cut"}.setOptional().setCount(0));
+			parser.addArgument(Arg{"--last-no-half-cut"}.setOptional().setCount(0));
+			parser.addArgument(Arg{"--last-chain-printing"}.setOptional().setCount(0));
+			parser.addArgument(Arg{"--last-no-chain-printing"}.setOptional().setCount(0));
+
 			parser.addArgument(Arg{"--mirror-printing"}.setOptional().setCount(0));
 			parser.addArgument(Arg{"--scale-down"}.setOptional().setCount(0));
 			parser.addArgument(Arg{"--scale-up"}.setOptional().setCount(0));
 			parser.addArgument(Arg{"--center"}.setOptional().setCount(0));
+
 			break;
 		case Command::Status:
 			parser.addArgument(Arg{"-o"});
@@ -485,6 +519,8 @@ int main(int argc, char **argv)
 			uint8_t flags = 0;
 			if (pathIndex == parser.values("-i").size() - 1)
 				flags |= Flags::LastImage;
+			if (pathIndex == 0)
+				flags |= Flags::FirstImage;
 
 			png::image<png::rgb_pixel> image;
 			unsigned imageWidth;

@@ -74,13 +74,13 @@ cat /tmp/request.prn > /dev/usb/lp1
 Print three images and be verbose about all of it.
 
 ```
-./manage.py print -v -d /dev/usb/lp1 -i images/cat0.png -o /dev/usb/lp1 --copies 3 --tape-colour white --tape-width '32 mm' --tape-type 'laminated tape' --text-colour black
+./manage.py print -v -d /dev/usb/lp1 -o /dev/usb/lp1 -i images/cat0.png --copies 3 --tape-colour white --tape-width '32 mm' --tape-type 'laminated tape' --text-colour black
 ```
 
-Print with chain cutting on (saving tape when printing many images), half-cutting off and auto-cutting off. Also set 10 mm length margin instead of default 14 mm.
+Print with chain printing on (saving tape when printing many images), half-cutting off and auto-cutting off. Also set 10 mm length margin instead of default 14 mm and turn off chain printing at the last page.
 
 ```
-./manage.py print -d /dev/usb/lp1 -o /dev/usb/lp1 -i images/cat0.png --tape-colour white --tape-width '32 mm' --tape-type 'laminated tape' --text-colour black --set-length-margin 10 --chain-printing --no-auto-cut --no-half-cut
+./manage.py print -d /dev/usb/lp1 -o /dev/usb/lp1 -i images/cat0.png --copies 3 --tape-colour white --tape-width '32 mm' --tape-type 'laminated tape' --text-colour black --set-length-margin 10 --chain-printing --no-auto-cut --no-half-cut --last-no-chain-printing
 ```
 
 Scale an image down (lanczos) so the height fits, then print it.

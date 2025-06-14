@@ -186,8 +186,12 @@ void parse(char *buf, unsigned len, uint8_t parseFlags, uint8_t printFlags)
 				std::cerr << "various mode settings:\n";
 				if (buf[i] & 0x40)
 					std::cerr << "\tauto cut\n";
+				else
+					std::cerr << "\tno auto cut\n";
 				if (buf[i] & 0x80)
 					std::cerr << "\tmirror printing\n";
+				else
+					std::cerr << "\tno mirror printing\n";
 				break;
 			case 'K':
 				assert(++i < len);
